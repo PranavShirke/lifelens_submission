@@ -1,0 +1,27 @@
+qdrant-client
+google-generativeai
+groq
+pydub
+gTTS
+geopy
+python-dotenv
+pillow
+numpy
+cachetools
+rich
+requests
+plotly
+pandas
+fastapi
+uvicorn[standard]
+pyjwt
+python-multipart
+sentence-transformers
+edge-tts
+pygame
+openai-whisper
+ultralytics; python_version < "3.14"
+opencv-python-headless; python_version < "3.14"
+tensorflow; python_version < "3.13"
+keras-facenet; python_version < "3.13"
+scipy
