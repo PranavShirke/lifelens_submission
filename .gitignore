@@ -1,0 +1,12 @@
+node_modules/
+.next/
+dist/
+__pycache__/
+*.pyc
+.env
+.venv/
+venv/
+scratch/
+*.log
+backend/scratch/
+frontend/scratch/
