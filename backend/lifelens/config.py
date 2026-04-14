@@ -31,6 +31,18 @@ MEMORY_GAP_THRESHOLD_MINUTES = 5    # Trigger if no memories for this long (Redu
 PHOTO_GAP_THRESHOLD_MINUTES = 10   # Trigger if no photos for this long (Reduced for demo)
 TRIGGER_STORAGE_FILE = "triggers.json"
 
+# System entry types that should NOT appear in memories / Memory Lane / Memory Book.
+# These are operational records (medication tracking, trigger logs, etc.) and belong
+# only on the caretaker's Medications page.
+EXCLUDED_MEMORY_TYPES = [
+    "agent_decision",
+    "missed_dose_alert",
+    "medication_reminder_sent",
+    "trigger_history",
+    "medication_event",
+    "medication_alert",
+]
+
 # Multi-Agent System Configuration
 PLANNER_MODEL = "llama-3.3-70b-versatile"
 CRITIC_MODEL = "llama-3.3-70b-versatile"

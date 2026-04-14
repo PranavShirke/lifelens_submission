@@ -37,6 +37,17 @@ def create_collection_if_not_exists(client: QdrantClient):
             # Index might already exist
             logging.info(f"patient_id index status: {idx_error}")
 
+        # Create timestamp index for filtering
+        try:
+            client.create_payload_index(
+                collection_name=QDRANT_COLLECTION_NAME,
+                field_name="timestamp",
+                field_schema=models.PayloadSchemaType.FLOAT
+            )
+            logging.info("Created timestamp index for filtering.")
+        except Exception as idx_error:
+            logging.info(f"timestamp index status: {idx_error}")
+
         # Create type index for filtering
         try:
             client.create_payload_index(

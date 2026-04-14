@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import React, { useState, useEffect } from 'react';
 import AppShell from '@/components/shell/AppShell';
 import RoleGuard from '@/components/auth/RoleGuard';
@@ -8,15 +9,16 @@ import { useSessionStore } from '@/lib/store/session-store';
 import { useUIStore } from '@/lib/store/ui-store';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
-import { getDashboardStats, getMoodData, getAgentInsights, getSuggestions } from '@/lib/api/dashboard';
-import { getMedications } from '@/lib/api/medications';
-import { getFamilyRequests } from '@/lib/api/family';
-import type { Medication } from '@/lib/types';
+import { getDashboardStats, getMoodData, getAgentInsights, getSuggestions, downloadMemoryBook } from '@/lib/api/dashboard';
+import { getMedications, getAdherenceData } from '@/lib/api/medications';
+import { getFamilyRequests, updateFamilyRequest, fulfillFamilyRequest } from '@/lib/api/family';
+import { getMemories, deleteMemory } from '@/lib/api/memories';
+import type { Medication, Memory } from '@/lib/types';
 import AddMedicationModal from '@/components/medication/AddMedicationModal';
 import {
   Upload, Camera, Mic, BarChart3, Brain,
   Users, BookOpen, Trash2, Check, Star, AlertTriangle, Lightbulb, Info, ArrowLeft, Search, Calendar, Heart,
-  Lock, Eye, Package, Plus
+  Lock, Eye, Package, Plus, X, Loader2, CheckCircle2, Download, Pill
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, PieChart, Pie, Cell, Legend } from 'recharts';
 
@@ -49,6 +51,23 @@ function DashboardContent() {
   const [moodDistribution, setMoodDistribution] = useState<Array<{ emotion: string; count: number; color: string }>>([]);
   const [weeklyActivity, setWeeklyActivity] = useState<Array<{ date: string; images: number; text: number }>>([]);
   const [agentSuggestions, setAgentSuggestions] = useState<Array<{ id: string; type: string; title: string; description: string }>>([]);
+  const [adherenceData, setAdherenceData] = useState<Array<{ date: string; taken: number; missed: number; skipped: number; total: number; adherence: number }>>([]);
+  const [overallAdherence, setOverallAdherence] = useState(0);
+
+  // Memory Book state
+  const [downloadingBook, setDownloadingBook] = useState(false);
+
+  // Cleanup modal state
+  const [showCleanupModal, setShowCleanupModal] = useState(false);
+  const [allMemories, setAllMemories] = useState<Memory[]>([]);
+  const [selectedForDeletion, setSelectedForDeletion] = useState<Set<string>>(new Set());
+  const [deletingMemories, setDeletingMemories] = useState(false);
+  const [loadingMemories, setLoadingMemories] = useState(false);
+
+  // Fulfill request modal state
+  const [fulfillModal, setFulfillModal] = useState<{ open: boolean; request: typeof familyRequests[0] | null }>({ open: false, request: null });
+  const [fulfillContent, setFulfillContent] = useState('');
+  const [fulfilling, setFulfilling] = useState(false);
 
   // Fetch data from backend
   const fetchData = () => {
@@ -59,7 +78,6 @@ function DashboardContent() {
       setTotalMemories(stats.totalCount);
       setThisWeek(stats.recentCount);
       setLongestStreak(stats.streak);
-      // Build weekly activity from dailyCounts
       const activity = Object.entries(stats.dailyCounts).map(([d, c]) => ({ date: d, images: Math.ceil(Number(c) / 2), text: Math.floor(Number(c) / 2) }));
       setWeeklyActivity(activity);
     }).catch(() => {});
@@ -77,11 +95,95 @@ function DashboardContent() {
       })));
     }).catch(() => {});
     getSuggestions(pid).then(setAgentSuggestions).catch(() => {});
+    
+    // Fetch adherence data
+    getAdherenceData(pid, 14).then((data) => {
+      setAdherenceData(data);
+      if (data.length > 0) {
+        const totalTaken = data.reduce((s: number, d: { taken: number }) => s + d.taken, 0);
+        const totalDoses = data.reduce((s: number, d: { total: number }) => s + d.total, 0);
+        setOverallAdherence(totalDoses > 0 ? Math.round((totalTaken / totalDoses) * 100) : 0);
+      }
+    }).catch(() => {});
   };
 
   useEffect(() => {
     fetchData();
   }, [activePatientId]);
+
+  // Memory Book download
+  const handleDownloadMemoryBook = async () => {
+    if (!activePatientId) return;
+    setDownloadingBook(true);
+    try {
+      await downloadMemoryBook(activePatientId);
+      addToast({ type: 'success', message: 'Memory Book downloaded! 📖' });
+    } catch {
+      addToast({ type: 'error', message: 'Failed to generate Memory Book' });
+    } finally {
+      setDownloadingBook(false);
+    }
+  };
+
+  // Cleanup: load memories
+  const handleOpenCleanup = async () => {
+    if (!activePatientId) return;
+    setShowCleanupModal(true);
+    setLoadingMemories(true);
+    try {
+      const mems = await getMemories(activePatientId);
+      setAllMemories(mems);
+    } catch {
+      addToast({ type: 'error', message: 'Failed to load memories' });
+    } finally {
+      setLoadingMemories(false);
+    }
+  };
+
+  const toggleMemorySelection = (id: string) => {
+    setSelectedForDeletion(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const handleDeleteSelected = async () => {
+    if (selectedForDeletion.size === 0) return;
+    setDeletingMemories(true);
+    try {
+      for (const memId of selectedForDeletion) {
+        await deleteMemory(memId);
+      }
+      setAllMemories(prev => prev.filter(m => !selectedForDeletion.has(m.id)));
+      setTotalMemories(prev => prev - selectedForDeletion.size);
+      addToast({ type: 'success', message: `${selectedForDeletion.size} memories deleted` });
+      setSelectedForDeletion(new Set());
+    } catch {
+      addToast({ type: 'error', message: 'Some deletions failed' });
+    } finally {
+      setDeletingMemories(false);
+    }
+  };
+
+  // Fulfill a family request
+  const handleFulfillRequest = async () => {
+    if (!fulfillModal.request || !fulfillContent.trim() || !activePatientId) return;
+    setFulfilling(true);
+    try {
+      await fulfillFamilyRequest(fulfillModal.request.id, activePatientId, fulfillContent);
+      setFamilyRequests(prev => prev.map(r => r.id === fulfillModal.request!.id ? { ...r, status: 'completed' } : r));
+      addToast({ type: 'success', message: 'Request fulfilled & memory added to Memory Lane! 🎉' });
+      setFulfillModal({ open: false, request: null });
+      setFulfillContent('');
+      fetchData(); // refresh
+    } catch {
+      addToast({ type: 'error', message: 'Failed to fulfill request' });
+    } finally {
+      setFulfilling(false);
+    }
+  };
 
   const filteredRequests = familyRequests.filter((r) => {
     if (requestTab === 'pending') return r.status === 'pending';
@@ -105,6 +207,10 @@ function DashboardContent() {
       scale: 1, 
       transition: { type: 'spring', stiffness: 400, damping: 25 } 
     }
+  };
+
+  const formatDate = (ts: string) => {
+    try { return new Date(ts).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }); } catch { return ts; }
   };
 
   return (
@@ -176,7 +282,7 @@ function DashboardContent() {
                  { label: 'Total Memories', value: totalMemories, textColor: 'text-slate-900' },
                  { label: 'This Week', value: `+${thisWeek}`, textColor: 'text-green-600' },
                  { label: 'Longest Streak', value: `${longestStreak} days`, textColor: 'text-yellow-600' },
-                 { label: 'Mood Trend', value: 'Positive', textColor: 'text-indigo-600' }
+                 { label: 'Adherence', value: `${overallAdherence}%`, textColor: 'text-indigo-600' }
                ].map((stat, i) => (
                  <motion.div 
                    key={stat.label}
@@ -206,7 +312,6 @@ function DashboardContent() {
         <motion.div variants={itemVariants} className="col-span-1 lg:col-span-3 flex flex-col gap-6">
           {/* AI/Agent Insights Card */}
           <div className="card bg-gradient-to-br from-[#18181b] to-[#27272a] text-white border-white/10 shadow-2xl relative overflow-hidden h-[420px] group hover:shadow-[0_0_40px_-10px_rgba(244,114,182,0.4)] transition-shadow duration-500">
-             {/* Decorative blob inside */}
              <div className="absolute -top-10 -right-10 w-56 h-56 bg-pink-500/30 rounded-full blur-[60px] pointer-events-none animate-pulse-glow" style={{ animationDuration: '4s' }}></div>
              <div className="absolute -bottom-10 -left-10 w-56 h-56 bg-indigo-500/20 rounded-full blur-[60px] pointer-events-none animate-pulse-glow" style={{ animationDelay: '2s' }}></div>
              
@@ -254,20 +359,25 @@ function DashboardContent() {
                <motion.button 
                  whileHover={{ scale: 1.02 }}
                  whileTap={{ scale: 0.98 }}
-                 onClick={() => addToast({ type: 'success', message: 'Book generating...' })} 
-                 className="flex-1 rounded-2xl bg-gradient-to-br from-pink-50 to-pink-100/50 border border-pink-200 flex flex-col items-center justify-center gap-2 text-pink-800 hover:shadow-md transition-all group"
+                 onClick={handleDownloadMemoryBook}
+                 disabled={downloadingBook}
+                 className="flex-1 rounded-2xl bg-gradient-to-br from-pink-50 to-pink-100/50 border border-pink-200 flex flex-col items-center justify-center gap-2 text-pink-800 hover:shadow-md transition-all group disabled:opacity-60"
                >
-                 <BookOpen className="w-6 h-6 stroke-[1.5] group-hover:scale-110 transition-transform" />
-                 <span className="text-xs font-bold tracking-wide">Generate Memory Book</span>
+                 {downloadingBook ? (
+                   <Loader2 className="w-6 h-6 animate-spin" />
+                 ) : (
+                   <Download className="w-6 h-6 stroke-[1.5] group-hover:scale-110 transition-transform" />
+                 )}
+                 <span className="text-xs font-bold tracking-wide">{downloadingBook ? 'Generating...' : 'Download Memory Book'}</span>
                </motion.button>
                <motion.button 
                  whileHover={{ scale: 1.02 }}
                  whileTap={{ scale: 0.98 }}
-                 onClick={() => addToast({ type: 'info', message: 'Scanning for duplicates...' })} 
+                 onClick={handleOpenCleanup}
                  className="flex-1 rounded-2xl bg-gradient-to-br from-yellow-50 to-yellow-100/50 border border-yellow-200 flex flex-col items-center justify-center gap-2 text-yellow-800 hover:shadow-md transition-all group"
                >
                  <Trash2 className="w-6 h-6 stroke-[1.5] group-hover:rotate-12 transition-transform" />
-                 <span className="text-xs font-bold tracking-wide">Clean Up Data</span>
+                 <span className="text-xs font-bold tracking-wide">Clean Up Memories</span>
                </motion.button>
              </div>
           </div>
@@ -275,7 +385,7 @@ function DashboardContent() {
 
         {/* CENTER COLUMN: Main Analytics */}
         <motion.div variants={itemVariants} className="col-span-1 lg:col-span-6 flex flex-col gap-6">
-          {/* Memory Analytics Group */}
+          {/* Memory Analytics + Adherence */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 h-[420px] md:h-[260px]">
              {/* Upload Activity Chart */}
              <div className="card h-full shadow-lg p-5 group hover:shadow-xl transition-all duration-300">
@@ -298,21 +408,24 @@ function DashboardContent() {
                </div>
              </div>
 
-             {/* Mood Distribution Chart */}
+             {/* Medication Adherence Chart */}
              <div className="card h-full shadow-lg p-5 group hover:shadow-xl transition-all duration-300">
                <div className="flex items-center justify-between mb-2">
-                 <h3 className="font-bold text-slate-900 flex items-center gap-2 text-sm"><Brain className="w-4 h-4 text-pink-500" /> Mood Distribution</h3>
-                 <span className="badge badge-gray px-2 py-0.5 text-[9px]">All Time</span>
+                 <h3 className="font-bold text-slate-900 flex items-center gap-2 text-sm"><Pill className="w-4 h-4 text-emerald-500" /> Med Adherence</h3>
+                 <span className={cn("text-lg font-black", overallAdherence >= 80 ? "text-emerald-600" : overallAdherence >= 50 ? "text-yellow-600" : "text-red-500")}>{overallAdherence}%</span>
                </div>
-               <div className="flex-1 min-h-0 w-full -mt-2 group-hover:scale-[1.05] transition-transform duration-500">
+               <div className="flex-1 min-h-0 w-full group-hover:scale-[1.02] transition-transform duration-500 origin-bottom">
                  <ResponsiveContainer width="100%" height="100%">
-                   <PieChart>
-                     <Pie data={moodDistribution} dataKey="count" nameKey="emotion" cx="50%" cy="50%" innerRadius={40} outerRadius={70} paddingAngle={3}>
-                       {moodDistribution.map((entry) => (<Cell key={entry.emotion} fill={entry.color} />))}
-                     </Pie>
-                     <Tooltip contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 16px rgba(0,0,0,0.1)' }} />
-                     <Legend iconType="circle" wrapperStyle={{ fontSize: '10px', fontWeight: 600 }} />
-                   </PieChart>
+                   <BarChart data={adherenceData.slice(-14)} margin={{ left: -20, right: 0, top: 0, bottom: 0 }}>
+                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                     <XAxis dataKey="date" tick={{ fontSize: 9, fill: '#94a3b8', fontWeight: 600 }} axisLine={false} tickLine={false}
+                       tickFormatter={(v: string) => { try { return new Date(v).toLocaleDateString('en-IN', { day: 'numeric' }); } catch { return v; }}} />
+                     <YAxis tick={{ fontSize: 9, fill: '#94a3b8', fontWeight: 600 }} axisLine={false} tickLine={false} width={30} />
+                     <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1)' }} />
+                     <Bar dataKey="taken" name="Taken" fill="#10B981" radius={[4, 4, 0, 0]} stackId="a" />
+                     <Bar dataKey="missed" name="Missed" fill="#EF4444" radius={[4, 4, 0, 0]} stackId="a" />
+                     <Bar dataKey="skipped" name="Skipped" fill="#F59E0B" radius={[4, 4, 0, 0]} stackId="a" />
+                   </BarChart>
                  </ResponsiveContainer>
                </div>
              </div>
@@ -369,7 +482,7 @@ function DashboardContent() {
                         <div className="flex items-start justify-between mb-3">
                           <div>
                             <p className="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">{req.requesterName}</p>
-                            <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-wider">{new Date(req.createdAt).toLocaleDateString()}</p>
+                            <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-wider">{formatDate(req.createdAt)}</p>
                           </div>
                           <span className={cn('badge', req.status === 'pending' ? 'badge-yellow' : req.status === 'completed' ? 'badge-green' : 'badge-gray')}>
                             {req.status}
@@ -381,10 +494,10 @@ function DashboardContent() {
                             <motion.button 
                               whileHover={{ scale: 1.02 }}
                               whileTap={{ scale: 0.98 }}
-                              onClick={() => addToast({ type: 'success', message: 'Fulfilled with text!' })} 
-                              className="w-full bg-indigo-50 hover:bg-indigo-100 text-indigo-700 hover:text-indigo-800 border border-indigo-200 rounded-xl px-4 py-2.5 text-xs font-bold transition-colors"
+                              onClick={() => { setFulfillModal({ open: true, request: req }); setFulfillContent(''); }}
+                              className="w-full bg-indigo-50 hover:bg-indigo-100 text-indigo-700 hover:text-indigo-800 border border-indigo-200 rounded-xl px-4 py-2.5 text-xs font-bold transition-colors flex items-center justify-center gap-2"
                             >
-                              Write Response
+                              <CheckCircle2 className="w-3.5 h-3.5" /> Fulfill & Add to Memory Lane
                             </motion.button>
                           </div>
                         )}
@@ -434,6 +547,25 @@ function DashboardContent() {
                 </motion.button>
               </div>
             </div>
+
+          {/* Mood Distribution Chart */}
+          <div className="card shadow-lg p-5 group hover:shadow-xl transition-all duration-300">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="font-bold text-slate-900 flex items-center gap-2 text-sm"><Brain className="w-4 h-4 text-pink-500" /> Mood Distribution</h3>
+              <span className="badge badge-gray px-2 py-0.5 text-[9px]">All Time</span>
+            </div>
+            <div className="w-full h-[200px] -mt-2 group-hover:scale-[1.05] transition-transform duration-500">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={moodDistribution} dataKey="count" nameKey="emotion" cx="50%" cy="50%" innerRadius={40} outerRadius={70} paddingAngle={3}>
+                    {moodDistribution.map((entry) => (<Cell key={entry.emotion} fill={entry.color} />))}
+                  </Pie>
+                  <Tooltip contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 16px rgba(0,0,0,0.1)' }} />
+                  <Legend iconType="circle" wrapperStyle={{ fontSize: '10px', fontWeight: 600 }} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
 
           {/* Upload Memory Component */}
           <div className="card shadow-lg flex-1 group">
@@ -503,20 +635,20 @@ function DashboardContent() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {/* Person Enrollment */}
-          <div className="relative rounded-[16px] border-2 border-dashed border-teal-200 bg-gradient-to-br from-teal-50/60 to-white/80 backdrop-blur-xl p-6 flex flex-col gap-4 transition-all hover:border-teal-300 hover:shadow-lg group overflow-hidden">
+          <Link href="/remember/person" className="relative rounded-[16px] border-2 border-dashed border-teal-200 bg-gradient-to-br from-teal-50/60 to-white/80 backdrop-blur-xl p-6 flex flex-col gap-4 transition-all hover:border-teal-300 hover:shadow-lg group overflow-hidden block cursor-pointer">
             <div className="absolute -top-10 -right-10 w-40 h-40 bg-teal-300/20 rounded-full blur-[60px] pointer-events-none group-hover:bg-teal-300/30 transition-colors" />
             <div className="flex items-center justify-between relative z-10">
               <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-2xl bg-teal-100 border border-teal-200 flex items-center justify-center">
-                  <Users className="w-5 h-5 text-teal-600" />
+                <div className="w-11 h-11 rounded-2xl bg-teal-100 border border-teal-200 flex items-center justify-center group-hover:bg-teal-500 group-hover:text-white transition-colors">
+                  <Users className="w-5 h-5 text-teal-600 group-hover:text-white transition-colors" />
                 </div>
                 <div>
                   <h3 className="font-bold text-sm text-slate-900">Person Enrollment</h3>
                   <p className="text-[10px] font-bold text-teal-400 uppercase tracking-widest">/remember/person</p>
                 </div>
               </div>
-              <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-teal-100 text-teal-600 text-[9px] font-black uppercase tracking-widest border border-teal-200">
-                <Lock className="w-3 h-3" /> Coming Soon
+              <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#EAF2E9] text-[#5A835A] text-[9px] font-black uppercase tracking-widest border border-[#7A9E7A]/25">
+                <CheckCircle2 className="w-3 h-3" /> Live
               </span>
             </div>
             <p className="text-xs text-slate-500 font-medium leading-relaxed relative z-10">Upload photos, names, relationships, context notes, and optional audio samples of loved ones and caregivers. The backend encodes face embeddings and stores metadata in Qdrant for real-time recognition.</p>
@@ -525,7 +657,7 @@ function DashboardContent() {
                 <span key={t} className="px-2.5 py-1 rounded-lg bg-white border border-teal-100 text-[10px] font-bold text-teal-600 shadow-sm">{t}</span>
               ))}
             </div>
-          </div>
+          </Link>
 
           {/* Object Enrollment */}
           <div className="relative rounded-[16px] border-2 border-dashed border-amber-200 bg-gradient-to-br from-amber-50/60 to-white/80 backdrop-blur-xl p-6 flex flex-col gap-4 transition-all hover:border-amber-300 hover:shadow-lg group overflow-hidden">
@@ -540,8 +672,8 @@ function DashboardContent() {
                   <p className="text-[10px] font-bold text-amber-400 uppercase tracking-widest">/remember/object</p>
                 </div>
               </div>
-              <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-100 text-amber-700 text-[9px] font-black uppercase tracking-widest border border-amber-200">
-                <Lock className="w-3 h-3" /> Coming Soon
+              <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#EAF2E9] text-[#5A835A] text-[9px] font-black uppercase tracking-widest border border-[#7A9E7A]/25">
+                <CheckCircle2 className="w-3 h-3" /> Live
               </span>
             </div>
             <p className="text-xs text-slate-500 font-medium leading-relaxed relative z-10">Upload photos of significant objects like wallets, medicine boxes, and keys so the system learns what they look like — helping the patient locate misplaced items via camera scanning.</p>
@@ -565,8 +697,8 @@ function DashboardContent() {
                   <p className="text-[10px] font-bold text-violet-400 uppercase tracking-widest">/remember/patient</p>
                 </div>
               </div>
-              <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-violet-100 text-violet-600 text-[9px] font-black uppercase tracking-widest border border-violet-200">
-                <Lock className="w-3 h-3" /> Coming Soon
+              <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#EAF2E9] text-[#5A835A] text-[9px] font-black uppercase tracking-widest border border-[#7A9E7A]/25">
+                <CheckCircle2 className="w-3 h-3" /> Live
               </span>
             </div>
             <p className="text-xs text-slate-500 font-medium leading-relaxed relative z-10">Register patient face and voice data securely to enable the 3D avatar to address them personally and provide a deeply personalized caregiving experience.</p>
@@ -578,6 +710,154 @@ function DashboardContent() {
           </div>
         </div>
       </div>
+
+      {/* ══════════════ CLEANUP MODAL ══════════════ */}
+      <AnimatePresence>
+        {showCleanupModal && (
+          <motion.div 
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+            onClick={() => setShowCleanupModal(false)}
+          >
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[80vh] flex flex-col overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2"><Trash2 className="w-5 h-5 text-yellow-500" /> Clean Up Memories</h2>
+                  <p className="text-xs text-slate-500 mt-1">Select memories to permanently delete from the Memory Lane</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  {selectedForDeletion.size > 0 && (
+                    <motion.button 
+                      initial={{ scale: 0 }} animate={{ scale: 1 }}
+                      onClick={handleDeleteSelected} disabled={deletingMemories}
+                      className="px-4 py-2 rounded-xl bg-red-500 text-white text-xs font-bold hover:bg-red-600 transition-colors flex items-center gap-2 disabled:opacity-50"
+                    >
+                      {deletingMemories ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                      Delete {selectedForDeletion.size} selected
+                    </motion.button>
+                  )}
+                  <button onClick={() => setShowCleanupModal(false)} className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center hover:bg-slate-200 transition-colors">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+              
+              {/* Memory List */}
+              <div className="flex-1 overflow-y-auto p-6 space-y-2">
+                {loadingMemories ? (
+                  <div className="flex items-center justify-center py-20">
+                    <Loader2 className="w-8 h-8 text-slate-400 animate-spin" />
+                  </div>
+                ) : allMemories.length === 0 ? (
+                  <div className="text-center py-20">
+                    <p className="text-slate-400 font-medium">No memories found</p>
+                  </div>
+                ) : (
+                  allMemories.map((m) => (
+                    <motion.div 
+                      key={m.id}
+                      whileHover={{ x: 2 }}
+                      className={cn(
+                        "flex items-center gap-4 p-4 rounded-2xl border transition-all cursor-pointer",
+                        selectedForDeletion.has(m.id) 
+                          ? "bg-red-50 border-red-200 ring-2 ring-red-200" 
+                          : "bg-white border-slate-100 hover:border-slate-200"
+                      )}
+                      onClick={() => toggleMemorySelection(m.id)}
+                    >
+                      {/* Checkbox */}
+                      <div className={cn(
+                        "w-6 h-6 rounded-lg border-2 flex items-center justify-center flex-shrink-0 transition-colors",
+                        selectedForDeletion.has(m.id) ? "bg-red-500 border-red-500" : "border-slate-300"
+                      )}>
+                        {selectedForDeletion.has(m.id) && <Check className="w-3.5 h-3.5 text-white" />}
+                      </div>
+                      
+                      {/* Type icon */}
+                      <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0",
+                        m.type === 'image' ? 'bg-indigo-50 text-indigo-500' : m.type === 'audio' ? 'bg-pink-50 text-pink-500' : 'bg-amber-50 text-amber-500'
+                      )}>
+                        {m.type === 'image' ? <Camera className="w-4 h-4" /> : m.type === 'audio' ? <Mic className="w-4 h-4" /> : <BookOpen className="w-4 h-4" />}
+                      </div>
+                      
+                      {/* Content preview */}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-slate-800 truncate">{m.caption || m.transcript || m.content || 'Untitled memory'}</p>
+                        <div className="flex items-center gap-3 mt-1">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{m.type}</span>
+                          <span className="text-[10px] text-slate-400">{formatDate(m.timestamp)}</span>
+                          {m.sentiment && <span className="text-[10px] text-slate-400 capitalize">{m.sentiment}</span>}
+                        </div>
+                      </div>
+                    </motion.div>
+                  ))
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ══════════════ FULFILL REQUEST MODAL ══════════════ */}
+      <AnimatePresence>
+        {fulfillModal.open && fulfillModal.request && (
+          <motion.div 
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+            onClick={() => setFulfillModal({ open: false, request: null })}
+          >
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-6 border-b border-slate-100">
+                <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2"><CheckCircle2 className="w-5 h-5 text-indigo-500" /> Fulfill Request</h2>
+                <p className="text-xs text-slate-500 mt-1">This will create a memory and mark the request as completed</p>
+              </div>
+              
+              <div className="p-6 space-y-4">
+                {/* Show original request */}
+                <div className="p-4 rounded-xl bg-indigo-50/50 border border-indigo-100">
+                  <p className="text-xs font-bold text-indigo-600 uppercase tracking-wider mb-1">Original Request from {fulfillModal.request.requesterName}</p>
+                  <p className="text-sm text-slate-700">{fulfillModal.request.description}</p>
+                </div>
+                
+                {/* Memory content */}
+                <div>
+                  <label className="text-sm font-semibold text-slate-700 mb-2 block">Memory Content</label>
+                  <textarea 
+                    className="input-base min-h-[120px] resize-none"
+                    placeholder="Write the memory content that will be added to the Memory Lane..."
+                    value={fulfillContent}
+                    onChange={(e) => setFulfillContent(e.target.value)}
+                  />
+                </div>
+              </div>
+              
+              <div className="p-6 border-t border-slate-100 flex items-center justify-end gap-3">
+                <button onClick={() => setFulfillModal({ open: false, request: null })} className="px-5 py-2.5 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-100 transition-colors">
+                  Cancel
+                </button>
+                <motion.button 
+                  whileTap={{ scale: 0.97 }}
+                  onClick={handleFulfillRequest}
+                  disabled={fulfilling || !fulfillContent.trim()}
+                  className="px-5 py-2.5 rounded-xl bg-indigo-500 text-white text-sm font-bold hover:bg-indigo-600 transition-colors flex items-center gap-2 disabled:opacity-50"
+                >
+                  {fulfilling ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                  Fulfill & Add to Memory Lane
+                </motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
     </div>
   );

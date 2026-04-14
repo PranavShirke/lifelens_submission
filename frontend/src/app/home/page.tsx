@@ -10,7 +10,7 @@ import {
   Camera, Mic, Upload, Star, Send, Volume2, Brain,
   Sparkles, Clock, Pill, AlertTriangle, Lightbulb, Loader2, Lock,
   Heart, TrendingUp, Zap, ChevronRight, Image, PenLine, MicIcon, Search,
-  PhoneCall, CheckCircle2, Circle, Info
+  PhoneCall, CheckCircle2, Circle, Info, Plus, X
 } from 'lucide-react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -18,16 +18,15 @@ import MemoryCard from '@/components/memory/MemoryCard';
 import LocationSelector from '@/components/memory/LocationSelector';
 import MilestoneToggle from '@/components/memory/MilestoneToggle';
 import AgentWorkflowTabs from '@/components/agents/AgentWorkflowTabs';
-import TriggerAlertList from '@/components/triggers/TriggerAlertList';
 import WebcamCapture from '@/components/memory/WebcamCapture';
 import {
-  mockReminders, mockChatMessages
+  mockChatMessages
 } from '@/lib/mock-data';
 import type { ChatMessage, Memory, Trigger, Medication, MedicationEvent } from '@/lib/types';
 import { askLifeLens, createMemory, getMemories, uploadImage } from '@/lib/api/memories';
 import { getMedications, getMedicationEvents, markDose } from '@/lib/api/medications';
-import { getTriggers } from '@/lib/api/triggers';
-import { getSuggestions } from '@/lib/api/dashboard';
+import { getTriggers, dismissTrigger } from '@/lib/api/triggers';
+import { getReminders, createReminder, completeReminder, getSuggestions } from '@/lib/api/dashboard';
 
 export default function PatientHomePage() {
   return (
@@ -48,6 +47,11 @@ function PatientHomeContent() {
   const [medEvents, setMedEvents] = useState<MedicationEvent[]>([]);
   const [triggers, setTriggers] = useState<Trigger[]>([]);
   const [suggestions, setSuggestionsData] = useState<Array<{ id: string; type: string; title: string; description: string }>>([]);
+  const [reminders, setReminders] = useState<Array<{ id: string; task: string; time: string; completed: boolean }>>([]);
+  const [showAddReminder, setShowAddReminder] = useState(false);
+  const [newReminderTask, setNewReminderTask] = useState('');
+  const [newReminderTime, setNewReminderTime] = useState('');
+  const [savingReminder, setSavingReminder] = useState(false);
 
   const [textContent, setTextContent] = useState('');
   const [personTags, setPersonTags] = useState('');
@@ -70,7 +74,29 @@ function PatientHomeContent() {
     getMedicationEvents(pid).then(setMedEvents).catch(() => {});
     getTriggers(pid).then(setTriggers).catch(() => {});
     getSuggestions(pid).then(setSuggestionsData).catch(() => {});
+    getReminders(pid).then(setReminders).catch(() => {});
   }, [activePatientId]);
+
+  const handleAddReminder = async () => {
+    if (!newReminderTask.trim()) { addToast({ type: 'error', message: 'Please enter a task' }); return; }
+    setSavingReminder(true);
+    try {
+      const pid = activePatientId || 'patient_1';
+      const rem = await createReminder(pid, newReminderTask, newReminderTime || 'Anytime');
+      setReminders(prev => [...prev, rem]);
+      setNewReminderTask(''); setNewReminderTime(''); setShowAddReminder(false);
+      addToast({ type: 'success', message: 'Reminder added! ⏰' });
+    } catch { addToast({ type: 'error', message: 'Failed to add reminder' }); }
+    finally { setSavingReminder(false); }
+  };
+
+  const handleCompleteReminder = async (remId: string) => {
+    try {
+      await completeReminder(remId);
+      setReminders(prev => prev.filter(r => r.id !== remId));
+      addToast({ type: 'success', message: 'Reminder completed! ✅' });
+    } catch { addToast({ type: 'error', message: 'Failed to complete reminder' }); }
+  };
 
   useEffect(() => { 
     if (chatEndRef.current && chatEndRef.current.parentElement) {
@@ -444,6 +470,118 @@ function PatientHomeContent() {
 
             {/* ── Ask LifeLens ── */}
           </AnimatePresence>
+
+          {/* ─── AI Insights + Live Alerts (Moved here to fill gap) ─── */}
+          <motion.div variants={fadeUp} className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+            {/* AI Suggestions — compact, max 2 */}
+            <div className="lg:col-span-5 card shadow-lg p-5 bg-gradient-to-br from-indigo-50/40 to-white border-indigo-100/40">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 bg-indigo-100 rounded-lg"><Lightbulb className="w-3.5 h-3.5 text-indigo-500" /></div>
+                  <h4 className="font-extrabold text-sm text-slate-900 tracking-tight">AI Insights</h4>
+                </div>
+                <span className="text-[9px] font-bold text-indigo-400 uppercase tracking-widest">{suggestions.length} total</span>
+              </div>
+              <div className="flex flex-col gap-2">
+                {suggestions.length === 0 ? (
+                  <div className="py-4 text-center">
+                    <p className="text-xs text-slate-400 font-medium">No insights yet</p>
+                  </div>
+                ) : (
+                  suggestions.slice(0, 2).map((s) => (
+                    <motion.div whileHover={{ x: 2 }} key={s.id} className="p-3 rounded-xl bg-white border border-indigo-50 shadow-sm hover:shadow-md hover:border-indigo-200 transition-all cursor-default group">
+                      <div className="flex items-start gap-2.5">
+                        <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5",
+                          s.type === 'warning' ? 'bg-yellow-50 text-yellow-500' : s.type === 'insight' ? 'bg-blue-50 text-blue-500' : 'bg-indigo-50 text-indigo-500'
+                        )}>
+                          {s.type === 'warning' ? <AlertTriangle className="w-3.5 h-3.5" /> : s.type === 'insight' ? <TrendingUp className="w-3.5 h-3.5" /> : <Lightbulb className="w-3.5 h-3.5" />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-bold text-slate-800 group-hover:text-indigo-700 transition-colors">{s.title}</p>
+                          <p className="text-[10px] text-slate-500 font-medium leading-relaxed line-clamp-2 mt-0.5">{s.description}</p>
+                        </div>
+                      </div>
+                    </motion.div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* Live Alerts — real-time triggers with dismiss */}
+            <div className="lg:col-span-7 card shadow-lg p-5 border-slate-200/80">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 bg-red-50 rounded-lg"><AlertTriangle className="w-3.5 h-3.5 text-red-500" /></div>
+                  <h4 className="font-extrabold text-sm text-slate-900 tracking-tight">Live Alerts</h4>
+                </div>
+                {triggers.length > 0 && (
+                  <span className={cn("px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest",
+                    triggers.some(t => t.severity === 'urgent') ? "bg-red-100 text-red-600" : 
+                    triggers.some(t => t.severity === 'high') ? "bg-yellow-100 text-yellow-700" :
+                    "bg-slate-100 text-slate-500"
+                  )}>
+                    {triggers.length} active
+                  </span>
+                )}
+              </div>
+
+              {triggers.length === 0 ? (
+                <div className="py-6 text-center rounded-xl bg-emerald-50/50 border border-emerald-100">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-400 mx-auto mb-1.5" />
+                  <p className="text-xs text-emerald-600 font-bold">All clear — no active alerts</p>
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-[200px] overflow-y-auto custom-scrollbar pr-1">
+                  <AnimatePresence>
+                    {triggers.slice(0, 5).map((trigger) => {
+                      const colors = {
+                        urgent: { bg: 'bg-red-50', border: 'border-red-200', icon: 'text-red-500', badge: 'bg-red-100 text-red-700' },
+                        high: { bg: 'bg-yellow-50', border: 'border-yellow-200', icon: 'text-yellow-500', badge: 'bg-yellow-100 text-yellow-700' },
+                        medium: { bg: 'bg-blue-50', border: 'border-blue-200', icon: 'text-blue-500', badge: 'bg-blue-100 text-blue-700' },
+                        low: { bg: 'bg-slate-50', border: 'border-slate-200', icon: 'text-slate-400', badge: 'bg-slate-100 text-slate-600' },
+                      }[trigger.severity] || { bg: 'bg-slate-50', border: 'border-slate-200', icon: 'text-slate-400', badge: 'bg-slate-100 text-slate-600' };
+
+                      return (
+                        <motion.div
+                          key={trigger.id}
+                          initial={{ opacity: 0, x: -10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          exit={{ opacity: 0, x: 20, height: 0 }}
+                          layout
+                          className={cn("p-3 rounded-xl border flex items-start gap-3 group transition-colors", colors.bg, colors.border)}
+                        >
+                          <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5 bg-white shadow-sm", colors.icon)}>
+                            {trigger.severity === 'urgent' ? <AlertTriangle className="w-3.5 h-3.5" /> : <Info className="w-3.5 h-3.5" />}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-0.5">
+                              <span className={cn("px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-widest", colors.badge)}>
+                                {trigger.severity}
+                              </span>
+                            </div>
+                            <p className="text-xs font-semibold text-slate-800 leading-snug">{trigger.message}</p>
+                          </div>
+                          <button
+                            onClick={async () => {
+                              try {
+                                const pid = activePatientId || 'patient_1';
+                                await dismissTrigger(trigger.id, pid);
+                                setTriggers(prev => prev.filter(t => t.id !== trigger.id));
+                                addToast({ type: 'success', message: 'Alert dismissed' });
+                              } catch { addToast({ type: 'error', message: 'Failed to dismiss' }); }
+                            }}
+                            className="w-6 h-6 rounded-lg bg-white/80 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100 flex-shrink-0"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </motion.div>
+                      );
+                    })}
+                  </AnimatePresence>
+                </div>
+              )}
+            </div>
+          </motion.div>
         </motion.div>
 
         {/* Right: Sidebar */}
@@ -487,7 +625,7 @@ function PatientHomeContent() {
                         </div>
                         <div>
                           <p className="text-xs font-bold text-white/90 truncate">{med.medicationName}</p>
-                          <p className="text-[10px] text-[#9896B0]/60 font-medium truncate">{med.dosage}</p>
+                          <p className="text-[10px] text-[#9896B0]/60 font-medium truncate">{med.doseTime}</p>
                         </div>
                         <div className="flex justify-end">
                           <button 
@@ -522,72 +660,65 @@ function PatientHomeContent() {
                 <div className="p-2 bg-[#FDF8EE] rounded-xl border border-[#C9A96E]/20 shadow-sm"><Clock className="w-4 h-4 text-[#C9A96E]" /></div>
                 <h4 className="font-extrabold text-sm text-[#1E1B2E] tracking-tight">Active Reminders</h4>
               </div>
-              <span className="badge badge-yellow text-[9px] shadow-sm">{mockReminders.length} active</span>
+              <div className="flex items-center gap-2">
+                <span className="badge badge-yellow text-[9px] shadow-sm">{reminders.length} active</span>
+                <button onClick={() => setShowAddReminder(!showAddReminder)} className="w-7 h-7 rounded-full bg-[#FDF8EE] border border-[#C9A96E]/20 flex items-center justify-center hover:bg-[#C9A96E]/20 transition-colors text-[#C9A96E]">
+                  {showAddReminder ? <X className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
+                </button>
+              </div>
             </div>
             
+            {/* Add Reminder Form */}
+            <AnimatePresence>
+              {showAddReminder && (
+                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden mb-4">
+                  <div className="p-4 rounded-xl bg-[#FDF8EE]/50 border border-[#C9A96E]/15 space-y-3">
+                    <input className="input-base py-2 text-xs w-full" placeholder="What do you need to remember?" value={newReminderTask} onChange={(e) => setNewReminderTask(e.target.value)} />
+                    <div className="flex gap-2">
+                      <input className="input-base py-2 text-xs flex-1" placeholder="When? e.g. 3pm, Tomorrow" value={newReminderTime} onChange={(e) => setNewReminderTime(e.target.value)} />
+                      <motion.button whileTap={{ scale: 0.95 }} onClick={handleAddReminder} disabled={savingReminder} className="px-4 py-2 rounded-xl bg-[#C9A96E] text-white text-xs font-bold hover:bg-[#B8944E] transition-colors disabled:opacity-50 flex items-center gap-1.5">
+                        {savingReminder ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />} Add
+                      </motion.button>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+            
             {/* Table Header */}
-            <div className="grid grid-cols-[15%_25%_45%_15%] gap-2 px-3 pb-2 border-b border-border-light mb-2">
+            <div className="grid grid-cols-[20%_60%_20%] gap-2 px-3 pb-2 border-b border-border-light mb-2">
               <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Time</p>
-              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest text-center">Status</p>
-              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Activity</p>
-              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest text-right">Action</p>
+              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Task</p>
+              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest text-right">Done</p>
             </div>
             
             <div className="space-y-1">
-              {mockReminders.slice(0, 3).map((r, idx) => {
-                const isUrgent = idx === 0;
-                return (
-                  <motion.div whileHover={{ x: 2 }} key={r.id} className="grid grid-cols-[15%_25%_45%_15%] gap-2 items-center p-3 rounded-xl bg-background border border-transparent hover:border-border-light shadow-sm transition-all cursor-default group/line">
+              {reminders.length === 0 ? (
+                <div className="py-6 text-center">
+                  <p className="text-xs text-slate-400 font-medium">No active reminders</p>
+                  <button onClick={() => setShowAddReminder(true)} className="text-xs text-[#C9A96E] font-bold mt-1 hover:underline">Add one →</button>
+                </div>
+              ) : (
+                reminders.slice(0, 5).map((r) => (
+                  <motion.div whileHover={{ x: 2 }} key={r.id} className="grid grid-cols-[20%_60%_20%] gap-2 items-center p-3 rounded-xl bg-background border border-transparent hover:border-border-light shadow-sm transition-all cursor-default group/line">
                     <span className="text-[10px] font-bold text-slate-500">{r.time}</span>
-                    <div className="flex justify-center">
-                      <span className={cn("px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest", isUrgent ? "bg-red-50 text-red-600" : "bg-amber-50 text-amber-600")}>
-                        {isUrgent ? 'Wait' : 'Upc'}
-                      </span>
-                    </div>
                     <div className="min-w-0 pr-2">
-                      <p className="text-xs font-bold text-slate-800 truncate">{r.text}</p>
+                      <p className="text-xs font-bold text-slate-800 truncate">{r.task}</p>
                     </div>
                     <div className="flex justify-end">
-                      <button className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center hover:bg-indigo-100 hover:text-indigo-600 transition-colors text-slate-500">
-                        {r.text.toLowerCase().includes('call') ? <PhoneCall className="w-3 h-3" /> : <ChevronRight className="w-4 h-4" />}
+                      <button onClick={() => handleCompleteReminder(r.id)} className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center hover:bg-[#EAF2E9] hover:text-[#7A9E7A] transition-colors text-slate-400">
+                        <CheckCircle2 className="w-4 h-4" />
                       </button>
                     </div>
                   </motion.div>
-                );
-              })}
+                ))
+              )}
             </div>
           </div>
         </motion.div>
       </div>
 
-      {/* ─── ROW 3: AI Suggestions + Alerts (side by side) ─── */}
-      <motion.div variants={fadeUp} className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        {/* AI Suggestions */}
-        <div className="card shadow-lg p-5 bg-gradient-to-br from-indigo-50/50 to-white border-indigo-100/50 h-fit self-start">
-          <div className="flex items-center gap-2.5 mb-4">
-            <div className="p-2 bg-indigo-100 rounded-xl"><Lightbulb className="w-4 h-4 text-indigo-500" /></div>
-            <h4 className="font-bold text-sm text-slate-900">AI Suggestions</h4>
-          </div>
-          <div className="flex flex-col gap-2.5">
-            {suggestions.slice(0, 3).map((s) => (
-              <div key={s.id} className="p-3 rounded-xl bg-white border border-indigo-100/50 shadow-sm hover:shadow-md transition-shadow cursor-default">
-                <div className="flex items-center gap-2 mb-1">
-                  {s.type === 'warning' && <AlertTriangle className="w-3 h-3 text-yellow-500" />}
-                  {s.type === 'insight' && <TrendingUp className="w-3 h-3 text-blue-500" />}
-                  {s.type === 'suggestion' && <Lightbulb className="w-3 h-3 text-indigo-500" />}
-                  <p className="text-xs font-bold text-slate-800">{s.title}</p>
-                </div>
-                <p className="text-[11px] text-slate-500 font-medium leading-relaxed line-clamp-2">{s.description}</p>
-              </div>
-            ))}
-          </div>
-        </div>
 
-        {/* Trigger Alerts */}
-        <div>
-          <TriggerAlertList triggers={triggers} onDismiss={() => addToast({ type: 'info', message: 'Alert dismissed' })} />
-        </div>
-      </motion.div>
 
       {/* ─── ROW 4: Upcoming Features (Coming Soon) ─── */}
       <motion.div variants={fadeUp}>
@@ -598,7 +729,7 @@ function PatientHomeContent() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           {/* 3D Avatar + Chat */}
-          <div className="relative rounded-[16px] border-2 border-dashed border-violet-200 bg-gradient-to-br from-violet-50/60 to-white/80 backdrop-blur-xl p-6 flex flex-col gap-4 transition-all hover:border-violet-300 hover:shadow-lg group overflow-hidden">
+          <Link href="/avatar-assistant" className="relative rounded-[16px] border-2 border-dashed border-violet-200 bg-gradient-to-br from-violet-50/60 to-white/80 backdrop-blur-xl p-6 flex flex-col gap-4 transition-all hover:border-violet-300 hover:shadow-lg group overflow-hidden block">
             <div className="absolute top-0 right-0 w-40 h-40 bg-violet-300/20 rounded-full blur-[60px] pointer-events-none group-hover:bg-violet-300/30 transition-colors" />
             <div className="flex items-center justify-between relative z-10">
               <div className="flex items-center gap-3">
@@ -610,8 +741,8 @@ function PatientHomeContent() {
                   <p className="text-[10px] font-bold text-violet-400 uppercase tracking-widest">Full-Screen Experience</p>
                 </div>
               </div>
-              <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-violet-100 text-violet-600 text-[9px] font-black uppercase tracking-widest border border-violet-200">
-                <Lock className="w-3 h-3" /> Coming Soon
+              <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#EAF2E9] text-[#5A835A] text-[9px] font-black uppercase tracking-widest border border-[#7A9E7A]/25">
+                <CheckCircle2 className="w-3 h-3" /> Live
               </span>
             </div>
             <p className="text-xs text-slate-500 font-medium leading-relaxed relative z-10">A full-screen 3D avatar companion that speaks naturally, recognises faces through the camera, answers questions about memories, and provides contextual support — all in real-time.</p>
@@ -620,23 +751,23 @@ function PatientHomeContent() {
                 <span key={t} className="px-2.5 py-1 rounded-lg bg-white border border-violet-100 text-[10px] font-bold text-violet-600 shadow-sm">{t}</span>
               ))}
             </div>
-          </div>
+          </Link>
 
           {/* Face Recognition */}
-          <div className="relative rounded-[16px] border-2 border-dashed border-cyan-200 bg-gradient-to-br from-cyan-50/60 to-white/80 backdrop-blur-xl p-6 flex flex-col gap-4 transition-all hover:border-cyan-300 hover:shadow-lg group overflow-hidden">
-            <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-cyan-300/20 rounded-full blur-[60px] pointer-events-none" />
+          <Link href="/avatar-assistant" className="relative rounded-[16px] border-2 border-dashed border-cyan-200 bg-gradient-to-br from-cyan-50/60 to-white/80 backdrop-blur-xl p-6 flex flex-col gap-4 transition-all hover:border-cyan-300 hover:shadow-lg group overflow-hidden block">
+            <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-cyan-300/20 rounded-full blur-[60px] pointer-events-none group-hover:bg-cyan-300/30 transition-colors" />
             <div className="flex items-center justify-between relative z-10">
               <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-2xl bg-cyan-100 border border-cyan-200 flex items-center justify-center">
-                  <Camera className="w-5 h-5 text-cyan-600" />
+                <div className="w-11 h-11 rounded-2xl bg-cyan-100 border border-cyan-200 flex items-center justify-center group-hover:bg-cyan-500 transition-colors">
+                  <Camera className="w-5 h-5 text-cyan-600 group-hover:text-white transition-colors" />
                 </div>
                 <div>
                   <h3 className="font-bold text-sm text-slate-900">Face Recognition</h3>
                   <p className="text-[10px] font-bold text-cyan-400 uppercase tracking-widest">&quot;Who is this?&quot;</p>
                 </div>
               </div>
-              <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-cyan-100 text-cyan-600 text-[9px] font-black uppercase tracking-widest border border-cyan-200">
-                <Lock className="w-3 h-3" /> Coming Soon
+              <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#EAF2E9] text-[#5A835A] text-[9px] font-black uppercase tracking-widest border border-[#7A9E7A]/25">
+                <CheckCircle2 className="w-3 h-3" /> Live
               </span>
             </div>
             <p className="text-xs text-slate-500 font-medium leading-relaxed relative z-10">Point your camera at a person. The system captures a frame, compares it against the Qdrant face database, and the avatar verbally introduces them — <em>&quot;This is John, your son.&quot;</em></p>
@@ -645,23 +776,23 @@ function PatientHomeContent() {
                 <span key={t} className="px-2.5 py-1 rounded-lg bg-white border border-cyan-100 text-[10px] font-bold text-cyan-600 shadow-sm">{t}</span>
               ))}
             </div>
-          </div>
+          </Link>
 
           {/* Object Tracking */}
-          <div className="relative rounded-[16px] border-2 border-dashed border-amber-200 bg-gradient-to-br from-amber-50/60 to-white/80 backdrop-blur-xl p-6 flex flex-col gap-4 transition-all hover:border-amber-300 hover:shadow-lg group overflow-hidden">
-            <div className="absolute top-0 left-0 w-40 h-40 bg-amber-300/20 rounded-full blur-[60px] pointer-events-none" />
+          <Link href="/avatar-assistant" className="relative rounded-[16px] border-2 border-dashed border-amber-200 bg-gradient-to-br from-amber-50/60 to-white/80 backdrop-blur-xl p-6 flex flex-col gap-4 transition-all hover:border-amber-300 hover:shadow-lg group overflow-hidden block">
+            <div className="absolute top-0 left-0 w-40 h-40 bg-amber-300/20 rounded-full blur-[60px] pointer-events-none group-hover:bg-amber-300/30 transition-colors" />
             <div className="flex items-center justify-between relative z-10">
               <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-2xl bg-amber-100 border border-amber-200 flex items-center justify-center">
-                  <Search className="w-5 h-5 text-amber-600" />
+                <div className="w-11 h-11 rounded-2xl bg-amber-100 border border-amber-200 flex items-center justify-center group-hover:bg-amber-500 transition-colors">
+                  <Search className="w-5 h-5 text-amber-600 group-hover:text-white transition-colors" />
                 </div>
                 <div>
                   <h3 className="font-bold text-sm text-slate-900">Object Tracking</h3>
                   <p className="text-[10px] font-bold text-amber-400 uppercase tracking-widest">&quot;Where are my keys?&quot;</p>
                 </div>
               </div>
-              <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-100 text-amber-700 text-[9px] font-black uppercase tracking-widest border border-amber-200">
-                <Lock className="w-3 h-3" /> Coming Soon
+              <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#EAF2E9] text-[#5A835A] text-[9px] font-black uppercase tracking-widest border border-[#7A9E7A]/25">
+                <CheckCircle2 className="w-3 h-3" /> Live
               </span>
             </div>
             <p className="text-xs text-slate-500 font-medium leading-relaxed relative z-10">The camera scans for enrolled objects like medicine boxes, wallets, or keys. When spotted, the avatar announces — <em>&quot;I found your Medicine Box on the table.&quot;</em></p>
@@ -670,23 +801,23 @@ function PatientHomeContent() {
                 <span key={t} className="px-2.5 py-1 rounded-lg bg-white border border-amber-100 text-[10px] font-bold text-amber-700 shadow-sm">{t}</span>
               ))}
             </div>
-          </div>
+          </Link>
 
           {/* Voice Playback */}
-          <div className="relative rounded-[16px] border-2 border-dashed border-pink-200 bg-gradient-to-br from-pink-50/60 to-white/80 backdrop-blur-xl p-6 flex flex-col gap-4 transition-all hover:border-pink-300 hover:shadow-lg group overflow-hidden">
-            <div className="absolute -top-10 -right-10 w-40 h-40 bg-pink-300/20 rounded-full blur-[60px] pointer-events-none" />
+          <Link href="/avatar-assistant" className="relative rounded-[16px] border-2 border-dashed border-pink-200 bg-gradient-to-br from-pink-50/60 to-white/80 backdrop-blur-xl p-6 flex flex-col gap-4 transition-all hover:border-pink-300 hover:shadow-lg group overflow-hidden block">
+            <div className="absolute -top-10 -right-10 w-40 h-40 bg-pink-300/20 rounded-full blur-[60px] pointer-events-none group-hover:bg-pink-300/30 transition-colors" />
             <div className="flex items-center justify-between relative z-10">
               <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-2xl bg-pink-100 border border-pink-200 flex items-center justify-center">
-                  <Volume2 className="w-5 h-5 text-pink-600" />
+                <div className="w-11 h-11 rounded-2xl bg-pink-100 border border-pink-200 flex items-center justify-center group-hover:bg-pink-500 transition-colors">
+                  <Volume2 className="w-5 h-5 text-pink-600 group-hover:text-white transition-colors" />
                 </div>
                 <div>
                   <h3 className="font-bold text-sm text-slate-900">Voice Playback</h3>
                   <p className="text-[10px] font-bold text-pink-400 uppercase tracking-widest">&quot;How does John talk?&quot;</p>
                 </div>
               </div>
-              <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-pink-100 text-pink-600 text-[9px] font-black uppercase tracking-widest border border-pink-200">
-                <Lock className="w-3 h-3" /> Coming Soon
+              <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#EAF2E9] text-[#5A835A] text-[9px] font-black uppercase tracking-widest border border-[#7A9E7A]/25">
+                <CheckCircle2 className="w-3 h-3" /> Live
               </span>
             </div>
             <p className="text-xs text-slate-500 font-medium leading-relaxed relative z-10">Store voice samples of relatives. When the patient asks to hear a familiar voice, the AI retrieves and synthesizes the saved audio — bringing comfort through recognition.</p>
@@ -695,7 +826,7 @@ function PatientHomeContent() {
                 <span key={t} className="px-2.5 py-1 rounded-lg bg-white border border-pink-100 text-[10px] font-bold text-pink-600 shadow-sm">{t}</span>
               ))}
             </div>
-          </div>
+          </Link>
         </div>
       </motion.div>
 

@@ -9,7 +9,7 @@ import logging
 from typing import Dict
 from qdrant_client import QdrantClient
 from qdrant_client.http import models
-from lifelens.config import QDRANT_COLLECTION_NAME
+from lifelens.config import QDRANT_COLLECTION_NAME, EXCLUDED_MEMORY_TYPES
 import time
 
 logger = logging.getLogger(__name__)
@@ -41,8 +41,9 @@ def get_patient_stats(patient_id: str, qdrant_client: QdrantClient) -> Dict:
                 must_not=[
                     models.FieldCondition(
                         key="type",
-                        match=models.MatchValue(value="agent_decision")
+                        match=models.MatchValue(value=t)
                     )
+                    for t in EXCLUDED_MEMORY_TYPES
                 ]
             ),
             limit=1000,

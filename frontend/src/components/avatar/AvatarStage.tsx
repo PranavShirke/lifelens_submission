@@ -2,6 +2,8 @@
 
 import { motion, AnimatePresence } from 'framer-motion';
 import { Camera, Cpu, Loader2, MessageSquare, Mic, ShieldAlert } from 'lucide-react';
+import { Canvas } from '@react-three/fiber';
+import HolographicCore from './HolographicCore';
 
 interface AvatarStageProps {
   isSpeaking: boolean;
@@ -22,8 +24,6 @@ export default function AvatarStage({
   runtimeError,
   mode,
 }: AvatarStageProps) {
-  const avatarSrc = isSpeaking ? '/avatar/speaking.gif' : '/avatar/idle.gif';
-
   return (
     <section className="relative h-full min-h-[360px] overflow-hidden rounded-none md:rounded-r-[24px] border-r border-[#FF8C42]/15 bg-gradient-to-b from-[#1E1B2E] to-[#2A2640] text-white">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,194,153,0.18),transparent_55%),radial-gradient(circle_at_80%_80%,rgba(122,158,122,0.2),transparent_50%)]" />
@@ -42,14 +42,11 @@ export default function AvatarStage({
 
         <div className="relative flex flex-1 items-center justify-center">
           <div className="absolute h-[280px] w-[280px] rounded-full bg-[#FF8C42]/20 blur-[80px]" />
-          <motion.img
-            src={avatarSrc}
-            alt="LifeLens avatar companion"
-            initial={{ opacity: 0.7, scale: 0.98 }}
-            animate={{ opacity: 1, scale: isSpeaking ? 1.02 : 1 }}
-            transition={{ duration: 0.35 }}
-            className="relative z-10 max-h-[340px] w-full max-w-[420px] object-contain drop-shadow-[0_20px_50px_rgba(0,0,0,0.45)]"
-          />
+          <div className="relative z-10 h-[340px] w-full max-w-[420px]">
+            <Canvas camera={{ position: [0, 0, 5], fov: 45 }}>
+              <HolographicCore isSpeaking={isSpeaking} />
+            </Canvas>
+          </div>
         </div>
 
         <div className="mt-5 space-y-3">

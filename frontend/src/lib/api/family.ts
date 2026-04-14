@@ -56,3 +56,19 @@ export async function getMapMemories(patientId: string) {
   const { data } = await apiClient.get(`/map/memories/${patientId}`);
   return data.memories || [];
 }
+
+export async function fulfillFamilyRequest(
+  requestId: string,
+  patientId: string,
+  content: string,
+  notes?: string
+) {
+  const { data } = await apiClient.post('/family/requests/fulfill', {
+    request_id: requestId,
+    patient_id: patientId,
+    content,
+    notes,
+  });
+  return data;
+}
+

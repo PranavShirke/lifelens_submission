@@ -10,7 +10,7 @@ import MemoryList from '@/components/memory/MemoryList';
 import { useSessionStore } from '@/lib/store/session-store';
 import { useUIStore } from '@/lib/store/ui-store';
 import { cn, formatDate } from '@/lib/utils';
-import { getMemories } from '@/lib/api/memories';
+import { getMemories, getMemoryMedia } from '@/lib/api/memories';
 import { getFamilyRequests, getMessages, postMessage } from '@/lib/api/family';
 import type { Memory } from '@/lib/types';
 import { Heart, Camera, Star, Send, MessageCircle, ImageIcon, BookOpen } from 'lucide-react';
@@ -25,6 +25,52 @@ export default function FamilyPortalPage() {
         </ActivePatientGate>
       </AppShell>
     </RoleGuard>
+  );
+}
+
+function GalleryCard({ memory }: { memory: Memory }) {
+  const [imageUrl, setImageUrl] = React.useState<string | null>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState(false);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(false);
+    getMemoryMedia(memory.id)
+      .then((media) => {
+        if (!cancelled && media.imageUrl) {
+          setImageUrl(media.imageUrl);
+        } else if (!cancelled) {
+          setError(true);
+        }
+      })
+      .catch(() => { if (!cancelled) setError(true); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [memory.id]);
+
+  return (
+    <div className="card card-lift overflow-hidden cursor-pointer group">
+      <div className="aspect-square bg-gradient-to-br from-primary/5 to-accent/5 flex items-center justify-center relative overflow-hidden">
+        {loading ? (
+          <div className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+        ) : imageUrl ? (
+          <img
+            src={imageUrl}
+            alt={memory.caption || 'Memory photo'}
+            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+          />
+        ) : error ? (
+          <ImageIcon className="w-8 h-8 text-text-muted opacity-40" />
+        ) : null}
+        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
+      </div>
+      <div className="p-3">
+        <p className="text-xs text-text-secondary line-clamp-2">{memory.caption || 'Untitled photo'}</p>
+        <p className="text-[10px] text-text-muted mt-1">{formatDate(memory.timestamp)}</p>
+      </div>
+    </div>
   );
 }
 
@@ -139,22 +185,18 @@ function PortalContent() {
         {/* Tab 3: Photo Gallery */}
         {activeTab === 'gallery' && (
           <motion.div key="gallery" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {imageMemories.map((m) => (
-                <div key={m.id} className="card card-lift overflow-hidden cursor-pointer group">
-                  <div className="aspect-square bg-gradient-to-br from-primary/10 to-accent/10 flex items-center justify-center relative">
-                    <span className="text-5xl">📷</span>
-                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
-                      <ImageIcon className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </div>
-                  </div>
-                  <div className="p-3">
-                    <p className="text-xs text-text-secondary line-clamp-2">{m.caption}</p>
-                    <p className="text-[10px] text-text-muted mt-1">{formatDate(m.timestamp)}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
+            {imageMemories.length === 0 ? (
+              <div className="card p-12 text-center">
+                <ImageIcon className="w-10 h-10 text-text-muted mx-auto mb-3 opacity-40" />
+                <p className="text-sm text-text-muted font-medium">No photos yet</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {imageMemories.map((m) => (
+                  <GalleryCard key={m.id} memory={m} />
+                ))}
+              </div>
+            )}
           </motion.div>
         )}
 

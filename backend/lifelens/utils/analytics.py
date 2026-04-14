@@ -1,6 +1,6 @@
 from qdrant_client import QdrantClient
 from qdrant_client.http import models
-from lifelens.config import QDRANT_COLLECTION_NAME
+from lifelens.config import QDRANT_COLLECTION_NAME, EXCLUDED_MEMORY_TYPES
 from datetime import datetime, timedelta
 from collections import Counter
 import pandas as pd
@@ -8,7 +8,7 @@ import pandas as pd
 def get_memory_stats(client, patient_id: str):
     """Get comprehensive memory statistics for a patient."""
     
-    # Fetch all memories for patient, excluding agent decisions
+    # Fetch all memories for patient, excluding system/medication types
     results = client.scroll(
         collection_name=QDRANT_COLLECTION_NAME,
         limit=1000,
@@ -26,8 +26,9 @@ def get_memory_stats(client, patient_id: str):
             must_not=[
                 models.FieldCondition(
                     key="type",
-                    match=models.MatchValue(value="agent_decision")
+                    match=models.MatchValue(value=t)
                 )
+                for t in EXCLUDED_MEMORY_TYPES
             ]
         )
     )[0]

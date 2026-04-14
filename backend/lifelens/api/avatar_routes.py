@@ -184,7 +184,7 @@ async def recognize_person(file: UploadFile = File(...), _: dict = Depends(verif
         matches = memory_service.search_face(embedding)
         if matches:
             best_match = matches[0]
-            if best_match.score > 0.4:
+            if best_match.score > 0.85:
                 payload = best_match.payload or {}
                 _conversation_service().update_context(payload)
                 return {
@@ -417,9 +417,7 @@ async def find_object(file: UploadFile = File(...), _: dict = Depends(verify_tok
         embedding = object_service.generate_embedding(str(temp_path))
         matches = memory_service.search_object(embedding)
 
-        # Fallback embeddings are less discriminative than MobileNet features,
-        # so require stronger confidence to avoid false positives.
-        match_threshold = 0.6
+        match_threshold = 0.85
         if not getattr(object_service, "native_embedding_enabled", True):
             match_threshold = 0.98
 

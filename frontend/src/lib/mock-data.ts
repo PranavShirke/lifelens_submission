@@ -373,24 +373,7 @@ export const mockAgentWorkflow: AgentWorkflow = {
   ],
 };
 
-export const mockChatMessages: ChatMessage[] = [
-  {
-    id: 'chat-1',
-    role: 'user',
-    content: 'What happy memories do I have from the beach?',
-    timestamp: '2026-04-02T10:00:00Z',
-  },
-  {
-    id: 'chat-2',
-    role: 'assistant',
-    content: 'You have some wonderful beach memories, Alice! 🌊\n\nJust this morning, you had a beautiful walk at Juhu Beach with Priya, where you watched a golden sunrise reflecting off the waves. You marked this as a milestone memory — it must have been truly special!\n\nYour beach visits consistently bring you joy, and they\'re associated with some of your happiest days. The combination of nature, exercise, and good company seems to have a very positive effect on your mood.',
-    timestamp: '2026-04-02T10:00:05Z',
-    evidence: [mockMemories[0], mockMemories[6]],
-    agentWorkflow: mockAgentWorkflow,
-    similarityScore: 0.94,
-    keywords: ['beach', 'happy', 'walk', 'sunrise'],
-  },
-];
+export const mockChatMessages: ChatMessage[] = [];
 
 // ============ PERSON DIRECTORY ============
 export const mockPersonDirectory: PersonDirectory[] = [

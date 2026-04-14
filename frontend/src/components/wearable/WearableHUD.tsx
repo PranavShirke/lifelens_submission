@@ -6,6 +6,7 @@ import { Camera, X, Scan, Target, Brain, Shield, Info, Loader2, Sparkles } from 
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { uploadImage } from '@/lib/api/memories';
+import { recognizePerson, findObject } from '@/lib/api/avatar';
 import { useSessionStore } from '@/lib/store/session-store';
 import { useUIStore } from '@/lib/store/ui-store';
 
@@ -28,22 +29,82 @@ export default function WearableHUD({ onClose, onCapture }: WearableHUDProps) {
   // Mock detections
   const [detections, setDetections] = useState<{ id: number; x: number; y: number; label: string }[]>([]);
 
+  // Real-time Facial Recognition Loop
   useEffect(() => {
     setHudActive(true);
-    const interval = setInterval(() => {
-      if (Math.random() > 0.7) {
-        const newDetection = {
-          id: Date.now(),
-          x: 20 + Math.random() * 60,
-          y: 20 + Math.random() * 60,
-          label: ['Person: Family', 'Object: Medicine', 'Memory: Milestone', 'Place: Home'][Math.floor(Math.random() * 4)]
-        };
-        setDetections(prev => [...prev.slice(-2), newDetection]);
-        setTimeout(() => setDetections(prev => prev.filter(d => d.id !== newDetection.id)), 3000);
-      }
-    }, 2000);
-    return () => clearInterval(interval);
-  }, []);
+    let interval: ReturnType<typeof setInterval>;
+    
+    // Only engage Qdrant heavy polling when user begins recording telemetry
+    if (isRecording) {
+      interval = setInterval(async () => {
+        if (!webcamRef.current) return;
+        const imageSrc = webcamRef.current.getScreenshot();
+        if (!imageSrc) return;
+        
+        try {
+          const response = await fetch(imageSrc);
+          const blob = await response.blob();
+          const file = new File([blob], `scan.jpg`, { type: 'image/jpeg' });
+          
+          const [faceRes, objRes] = await Promise.all([
+            recognizePerson(file).catch(() => null),
+            findObject(file).catch(() => null)
+          ]);
+          
+          let updatedDetections: { id: number; x: number; y: number; label: string }[] = [];
+
+          if (faceRes) {
+            if (faceRes.status === 'identified' && faceRes.person?.name) {
+              updatedDetections.push({
+                id: Date.now() + 1,
+                x: 10 + Math.random() * 80,
+                y: 10 + Math.random() * 80,
+                label: `TARGET LOCKED: ${faceRes.person.name.toUpperCase()}`
+              });
+            } else if (faceRes.status === 'unknown') {
+              updatedDetections.push({
+                id: Date.now() + 2,
+                x: 10 + Math.random() * 80,
+                y: 10 + Math.random() * 80,
+                label: `UNKNOWN SUBJECT (Not Enrolled)`
+              });
+            }
+          }
+
+          if (objRes) {
+            if (objRes.status === 'identified' && objRes.object?.name) {
+              updatedDetections.push({
+                id: Date.now() + 3,
+                x: 10 + Math.random() * 80,
+                y: 10 + Math.random() * 80,
+                label: `OBJ DETECTED: ${objRes.object.name.toUpperCase()}`
+              });
+            } else if (objRes.status === 'unknown') {
+              updatedDetections.push({
+                id: Date.now() + 4,
+                x: 10 + Math.random() * 80,
+                y: 10 + Math.random() * 80,
+                label: `UNKNOWN OBJECT`
+              });
+            }
+          }
+
+          if (updatedDetections.length > 0) {
+             setDetections(prev => [...prev.slice(-2), ...updatedDetections]);
+             setTimeout(() => {
+                setDetections(prev => prev.filter(d => !updatedDetections.map(ud => ud.id).includes(d.id)));
+             }, 3000);
+          }
+        } catch (e) {
+          // Silent catch for polling misses
+        }
+      }, 3000);
+    }
+    
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isRecording]);
 
   // Timer Effect
   useEffect(() => {

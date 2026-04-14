@@ -34,3 +34,44 @@ export async function getSuggestions(patientId: string) {
   const { data } = await apiClient.get(`/suggestions/${patientId}`);
   return data.suggestions || [];
 }
+
+// ==================== REMINDERS ====================
+
+export async function getReminders(patientId: string) {
+  const { data } = await apiClient.get(`/reminders/${patientId}`);
+  return data.reminders || [];
+}
+
+export async function createReminder(patientId: string, task: string, time: string) {
+  const { data } = await apiClient.post('/reminders', { patient_id: patientId, task, time });
+  return data.reminder || data;
+}
+
+export async function completeReminder(reminderId: string) {
+  const { data } = await apiClient.post(`/reminders/${reminderId}/complete`);
+  return data;
+}
+
+export async function deleteReminder(reminderId: string) {
+  const { data } = await apiClient.delete(`/reminders/${reminderId}`);
+  return data;
+}
+
+// ==================== EXPORT ====================
+
+export async function downloadMemoryBook(patientId: string) {
+  const response = await apiClient.get(`/export/memory-book/${patientId}`, {
+    responseType: 'blob',
+    timeout: 60000,
+  });
+  const blob = new Blob([response.data], { type: 'text/html' });
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${patientId}_memory_book.html`;
+  document.body.appendChild(a);
+  a.click();
+  window.URL.revokeObjectURL(url);
+  document.body.removeChild(a);
+}
+

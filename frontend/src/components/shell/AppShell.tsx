@@ -8,12 +8,14 @@ import AIAssistantWidget from './AIAssistantWidget';
 import ToastContainer from '@/components/ui/ToastContainer';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUIStore } from '@/lib/store/ui-store';
+import { cn } from '@/lib/utils';
 
 interface AppShellProps {
   children: React.ReactNode;
+  fullBleed?: boolean;
 }
 
-export default function AppShell({ children }: AppShellProps) {
+export default function AppShell({ children, fullBleed = false }: AppShellProps) {
   const { sidebarOpen, setSidebarOpen } = useUIStore();
   const pathname = usePathname();
 
@@ -65,8 +67,8 @@ export default function AppShell({ children }: AppShellProps) {
       >
         <TopBar />
         
-        <main className="flex-1 overflow-y-auto px-4 md:px-6 pb-24 custom-scrollbar">
-          <div className="max-w-7xl mx-auto">
+        <main className={cn("flex-1 overflow-y-auto custom-scrollbar", fullBleed ? "" : "px-4 md:px-6 pb-24")}>
+          <div className={fullBleed ? "h-full" : "max-w-7xl mx-auto"}>
             {children}
           </div>
         </main>

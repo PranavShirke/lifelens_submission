@@ -16,3 +16,8 @@ fastapi
 uvicorn[standard]
 pyjwt
 python-multipart
+langchain
+langgraph
+langchain-groq
+langchain-core
+pydantic

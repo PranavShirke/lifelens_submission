@@ -18,7 +18,7 @@ from datetime import datetime, timedelta
 # Add project root to path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
-from lifelens.config import QDRANT_COLLECTION_NAME, JWT_SECRET, JWT_ALGORITHM
+from lifelens.config import QDRANT_COLLECTION_NAME, JWT_SECRET, JWT_ALGORITHM, EXCLUDED_MEMORY_TYPES
 from lifelens.auth.users import authenticate, create_user, get_all_patients, initialize_default_users
 from lifelens.qdrant.client import get_qdrant_client
 from lifelens.qdrant.schema import (
@@ -30,6 +30,8 @@ from lifelens.qdrant.schema import (
 from lifelens.retrieval.search_engine import search_memories
 from lifelens.retrieval.reasoning import get_answer
 from lifelens.ingestion.upsert_memory import upsert_memory
+from lifelens.avatar.collections import ensure_avatar_collections
+from lifelens.api.avatar_routes import router as avatar_router, v1_router as avatar_v1_router
 from qdrant_client.http import models
 
 # Initialize App
@@ -48,6 +50,10 @@ app.add_middleware(
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Avatar Assistant routes (namespaced to avoid conflicts)
+app.include_router(avatar_router)
+app.include_router(avatar_v1_router)
+
 
 # ==================== STARTUP ====================
 
@@ -61,6 +67,8 @@ def on_startup():
         create_mood_collections_if_not_exist(client)
         create_medication_collections_if_not_exist(client)
         create_agent_decisions_collection_if_not_exist(client)
+        avatar_collections = ensure_avatar_collections()
+        logger.info("✅ Avatar collections ready: %s", avatar_collections)
         logger.info("✅ All collections initialized")
     except Exception as e:
         logger.error(f"Startup initialization failed: {e}")
@@ -289,7 +297,10 @@ def get_recent_memories(patient_id: str, limit: int = 50, user: dict = Depends(v
             collection_name=QDRANT_COLLECTION_NAME,
             scroll_filter=models.Filter(
                 must=[models.FieldCondition(key="patient_id", match=models.MatchValue(value=patient_id))],
-                must_not=[models.FieldCondition(key="type", match=models.MatchValue(value="agent_decision"))],
+                must_not=[
+                    models.FieldCondition(key="type", match=models.MatchValue(value=t))
+                    for t in EXCLUDED_MEMORY_TYPES
+                ],
             ),
             limit=limit,
             with_payload=models.PayloadSelectorExclude(
@@ -471,7 +482,7 @@ def chat(request: ChatRequest, user: dict = Depends(verify_token)):
         client = get_client()
 
         if request.agentic_mode:
-            from lifelens.orchestrator import run_agentic_flow
+            from lifelens.langgraph_orchestrator import run_agentic_flow
 
             result = run_agentic_flow(request.question, request.patient_id, client, max_retries=1)
 
@@ -573,7 +584,10 @@ def get_mood_data(patient_id: str, days: int = 30, user: dict = Depends(verify_t
             collection_name=QDRANT_COLLECTION_NAME,
             scroll_filter=models.Filter(
                 must=[models.FieldCondition(key="patient_id", match=models.MatchValue(value=patient_id))],
-                must_not=[models.FieldCondition(key="type", match=models.MatchValue(value="agent_decision"))],
+                must_not=[
+                    models.FieldCondition(key="type", match=models.MatchValue(value=t))
+                    for t in EXCLUDED_MEMORY_TYPES
+                ],
             ),
             limit=500,
             with_payload=models.PayloadSelectorExclude(
@@ -812,25 +826,99 @@ def get_adherence(patient_id: str, days: int = 7, user: dict = Depends(verify_to
 
 @app.get("/api/triggers/{patient_id}")
 def get_triggers(patient_id: str, user: dict = Depends(verify_token)):
-    """Get active triggers for a patient."""
+    """Get active triggers for a patient — generates fresh ones from live data."""
     try:
-        from lifelens.utils.trigger_storage import load_triggers
+        from lifelens.utils.trigger_storage import load_triggers, save_trigger
+        from lifelens.utils.trigger_agent import generate_triggers
 
-        triggers = load_triggers(patient_id, include_dismissed=False)
+        client = get_client()
+
+        # 1) Load persisted (non-dismissed) triggers
+        stored = load_triggers(patient_id, include_dismissed=False)
+        stored_messages = {t.get("message", "") for t in stored}
+
+        # 2) Generate fresh triggers from live Qdrant data
+        fresh = generate_triggers(client, patient_id)
+
+        # 3) Auto-persist any NEW fresh triggers so they can be dismissed
+        for ft in fresh:
+            if ft.get("message", "") not in stored_messages:
+                save_trigger(ft, patient_id)
+                stored.append({**ft, "dismissed": False, "created_at": ft.get("timestamp", "")})
+
+        # Also generate medication-based triggers
+        try:
+            from lifelens.utils.medication_utils import get_medication_history, get_all_patient_medications
+            events = get_medication_history(client, patient_id, days=3)
+            meds = get_all_patient_medications(client, patient_id)
+            
+            missed_today = [e for e in events if e.get("status") == "missed" and e.get("dose_date") == datetime.now().date().isoformat()]
+            missed_recent = [e for e in events if e.get("status") in ("missed", "skipped")]
+            
+            if missed_today:
+                msg = f"{len(missed_today)} medication dose(s) missed today. Please follow up."
+                if msg not in stored_messages:
+                    med_trigger = {"type": "missed_medication", "title": "Missed Medication Alert", "message": msg, "priority": "high", "timestamp": datetime.now().isoformat()}
+                    save_trigger(med_trigger, patient_id)
+                    stored.append({**med_trigger, "dismissed": False, "created_at": med_trigger["timestamp"]})
+            
+            if len(missed_recent) >= 3:
+                msg = f"{len(missed_recent)} doses missed/skipped in the last 3 days. Adherence needs attention."
+                if msg not in stored_messages:
+                    adh_trigger = {"type": "missed_medication", "title": "Adherence Declining", "message": msg, "priority": "urgent", "timestamp": datetime.now().isoformat()}
+                    save_trigger(adh_trigger, patient_id)
+                    stored.append({**adh_trigger, "dismissed": False, "created_at": adh_trigger["timestamp"]})
+
+            # Check if patient has meds but 0 events today (all pending)
+            if meds and not any(e.get("dose_date") == datetime.now().date().isoformat() for e in events):
+                total_doses = sum(len(m.get("schedule", [])) for m in meds)
+                if total_doses > 0:
+                    msg = f"No medications taken yet today. {total_doses} dose(s) are scheduled."
+                    if msg not in stored_messages:
+                        pending_trigger = {"type": "missed_medication", "title": "Medication Reminder", "message": msg, "priority": "medium", "timestamp": datetime.now().isoformat()}
+                        save_trigger(pending_trigger, patient_id)
+                        stored.append({**pending_trigger, "dismissed": False, "created_at": pending_trigger["timestamp"]})
+        except Exception as med_err:
+            logger.warning(f"Medication trigger check failed: {med_err}")
+
+        # Reload stored triggers (now includes freshly saved ones)
+        all_triggers = load_triggers(patient_id, include_dismissed=False)
 
         # Format for frontend
         formatted = []
-        for t in triggers:
+        seen_msgs = set()
+        for t in all_triggers:
+            msg = t.get("message", "")
+            if msg in seen_msgs:
+                continue
+            seen_msgs.add(msg)
+            
+            # Map trigger type to frontend severity scheme
+            priority = t.get("priority", t.get("severity", "medium"))
+            trigger_type = t.get("type", "unknown")
+            # Map type names for frontend
+            type_map = {
+                "memory_gap": "inactivity",
+                "media_gap": "inactivity",
+                "mood_trend": "mood_decline",
+                "untagged_people": "unusual_pattern",
+                "milestone_anniversary": "unusual_pattern",
+            }
+            
             formatted.append({
                 "id": t.get("id"),
                 "patientId": patient_id,
-                "type": t.get("type", "unknown"),
-                "severity": t.get("priority", "medium"),
-                "message": t.get("message", ""),
-                "timestamp": t.get("created_at", ""),
+                "type": type_map.get(trigger_type, trigger_type),
+                "severity": priority,
+                "message": msg,
+                "timestamp": t.get("created_at", t.get("timestamp", "")),
                 "status": "dismissed" if t.get("dismissed") else "active",
-                "details": t.get("details", ""),
+                "details": t.get("details", t.get("title", "")),
             })
+
+        # Sort: urgent first
+        priority_order = {"urgent": 0, "high": 1, "medium": 2, "low": 3}
+        formatted.sort(key=lambda x: priority_order.get(x.get("severity", "medium"), 2))
 
         return {"triggers": formatted}
 
@@ -1113,9 +1201,25 @@ def get_map_memories(patient_id: str, user: dict = Depends(verify_token)):
 
 # ==================== REMINDERS ====================
 
+class ReminderCreate(BaseModel):
+    patient_id: str
+    task: str
+    time: str
+
+@app.get("/api/reminders/{patient_id}")
+def get_reminders(patient_id: str, user: dict = Depends(verify_token)):
+    """Get active (non-completed) reminders for a patient."""
+    try:
+        from lifelens.utils.reminders import get_reminders_for_patient
+        reminders = get_reminders_for_patient(patient_id)
+        return {"reminders": reminders or []}
+    except Exception as e:
+        logger.error(f"Get reminders failed: {e}")
+        return {"reminders": []}
+
 @app.get("/api/reminders")
-def get_reminders(user: dict = Depends(verify_token)):
-    """Get active reminders."""
+def get_reminders_legacy(user: dict = Depends(verify_token)):
+    """Legacy: Get all reminders."""
     try:
         from lifelens.utils.reminders import load_reminders
         reminders = load_reminders()
@@ -1123,6 +1227,192 @@ def get_reminders(user: dict = Depends(verify_token)):
     except Exception as e:
         logger.error(f"Get reminders failed: {e}")
         return {"reminders": []}
+
+@app.post("/api/reminders")
+def create_reminder(request: ReminderCreate, user: dict = Depends(verify_token)):
+    """Create a new reminder."""
+    try:
+        from lifelens.utils.reminders import add_reminder
+        reminder = add_reminder(request.patient_id, request.task, request.time)
+        return {"status": "success", "reminder": reminder}
+    except Exception as e:
+        logger.error(f"Create reminder failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/reminders/{reminder_id}/complete")
+def complete_reminder(reminder_id: str, user: dict = Depends(verify_token)):
+    """Mark a reminder as completed."""
+    try:
+        from lifelens.utils.reminders import complete_reminder as do_complete
+        success = do_complete(reminder_id)
+        if success:
+            return {"status": "success", "message": "Reminder completed"}
+        else:
+            raise HTTPException(status_code=404, detail="Reminder not found")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Complete reminder failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/reminders/{reminder_id}")
+def delete_reminder(reminder_id: str, user: dict = Depends(verify_token)):
+    """Delete a reminder."""
+    try:
+        from lifelens.utils.reminders import delete_reminder as do_delete
+        success = do_delete(reminder_id)
+        if success:
+            return {"status": "success", "message": "Reminder deleted"}
+        else:
+            raise HTTPException(status_code=404, detail="Reminder not found")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Delete reminder failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ==================== EXPORT ====================
+
+@app.get("/api/export/memory-book/{patient_id}")
+def export_memory_book(patient_id: str, user: dict = Depends(verify_token)):
+    """Generate and return a downloadable HTML memory book."""
+    try:
+        from fastapi.responses import HTMLResponse
+        from lifelens.utils.export import generate_memory_book_html
+
+        client = get_client()
+
+        # Fetch all memories with full payload (including media)
+        results = client.scroll(
+            collection_name=QDRANT_COLLECTION_NAME,
+            scroll_filter=models.Filter(
+                must=[models.FieldCondition(key="patient_id", match=models.MatchValue(value=patient_id))],
+                must_not=[
+                    models.FieldCondition(key="type", match=models.MatchValue(value=t))
+                    for t in EXCLUDED_MEMORY_TYPES
+                ],
+            ),
+            limit=200,
+            with_payload=True,
+            with_vectors=False,
+        )[0]
+
+        memories = [point.payload for point in results]
+
+        # Resolve patient name
+        patient_name = patient_id
+        try:
+            patients = get_all_patients()
+            for p in patients:
+                if isinstance(p, dict) and p.get("id") == patient_id:
+                    patient_name = p.get("name", patient_id)
+                    break
+                elif isinstance(p, str) and p == patient_id:
+                    patient_name = patient_id
+                    break
+        except:
+            pass
+
+        html = generate_memory_book_html(memories, patient_name)
+
+        return HTMLResponse(
+            content=html,
+            media_type="text/html",
+            headers={
+                "Content-Disposition": f'attachment; filename="{patient_name}_memory_book.html"'
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Export memory book failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ==================== MEMORY DELETION ====================
+
+@app.delete("/api/memories/{memory_id}")
+def delete_memory(memory_id: str, user: dict = Depends(verify_token)):
+    """Delete a specific memory from Qdrant."""
+    try:
+        client = get_client()
+
+        # Verify memory exists
+        try:
+            results = client.retrieve(
+                collection_name=QDRANT_COLLECTION_NAME,
+                ids=[memory_id],
+                with_payload=False,
+                with_vectors=False,
+            )
+            if not results:
+                raise HTTPException(status_code=404, detail="Memory not found")
+        except HTTPException:
+            raise
+        except:
+            pass  # Some IDs may be UUIDs vs ints
+
+        client.delete(
+            collection_name=QDRANT_COLLECTION_NAME,
+            points_selector=models.PointIdsList(points=[memory_id])
+        )
+
+        return {"status": "success", "message": "Memory deleted"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Delete memory failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ==================== REQUEST FULFILLMENT ====================
+
+class FulfillRequestBody(BaseModel):
+    request_id: str
+    patient_id: str
+    content: str
+    notes: Optional[str] = None
+
+@app.post("/api/family/requests/fulfill")
+def fulfill_family_request(body: FulfillRequestBody, user: dict = Depends(verify_token)):
+    """Fulfill a family request by creating a memory and marking as completed."""
+    try:
+        client = get_client()
+        from lifelens.ingestion.text_processor import process_text
+        from lifelens.utils.memory_requests import update_request_status, load_requests
+
+        # Find the request to get context
+        all_requests = load_requests()
+        matched_req = None
+        for r in all_requests:
+            if r["id"] == body.request_id:
+                matched_req = r
+                break
+
+        # Create the memory
+        data = process_text(body.content)
+        data["patient_id"] = body.patient_id
+        data["timestamp"] = int(time.time())
+        data["source"] = "family_request"
+        if matched_req:
+            details = matched_req.get("details", {})
+            if details.get("people_involved"):
+                data["person_tags"] = details["people_involved"]
+            if details.get("location"):
+                data["location"] = {"name": details["location"]}
+
+        upsert_memory(client, "text", data)
+
+        # Mark request as completed
+        notes = body.notes or "Memory added as text note"
+        update_request_status(body.request_id, "completed", notes)
+
+        return {"status": "success", "message": "Request fulfilled and memory added"}
+
+    except Exception as e:
+        logger.error(f"Fulfill request failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 if __name__ == "__main__":

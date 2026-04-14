@@ -4,7 +4,16 @@
     "patient_id": "patient_1",
     "task": "Take vitamins",
     "time": "9 PM",
+    "completed": true,
+    "created_at": "2026-04-13T22:22:09.701097",
+    "completed_at": "2026-04-14T01:33:26.627688"
+  },
+  {
+    "id": "rem-916088bd",
+    "patient_id": "patient_1",
+    "task": "complete cloud course",
+    "time": "Anytime",
     "completed": false,
-    "created_at": "2026-04-13T22:22:09.701097"
+    "created_at": "2026-04-14T01:44:45.361265"
   }
 ]

@@ -166,3 +166,16 @@ export function getChatHistory(): ChatMessage[] {
   // Chat history is now managed client-side in the component state
   return [];
 }
+
+export async function getMemoryMedia(memoryId: string): Promise<{ imageUrl?: string; audioUrl?: string }> {
+  const { data } = await apiClient.get(`/memories/media/${memoryId}`);
+  return {
+    imageUrl: data.image_base64 ? `data:image/jpeg;base64,${data.image_base64}` : undefined,
+    audioUrl: data.audio_base64 ? `data:audio/wav;base64,${data.audio_base64}` : undefined,
+  };
+}
+
+export async function deleteMemory(memoryId: string): Promise<void> {
+  await apiClient.delete(`/memories/${memoryId}`);
+}
+
