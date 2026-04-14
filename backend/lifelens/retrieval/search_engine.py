@@ -142,9 +142,24 @@ def search_memories(client: QdrantClient, query: str, filters: dict = None, top_
         with_payload=True
     ).points
     
+    # Detect if query asks for recent/latest memories
+    recency_keywords = ['latest', 'recent', 'newest', 'last', 'today', 'new', 'just']
+    wants_recent = any(keyword in query_lower for keyword in recency_keywords)
+    
     # Parse Results
     results = []
     keywords = _extract_keywords(query)  # Extract keywords for hybrid search
+    
+    # Find max timestamp for normalizing recency boost
+    max_ts = 0
+    min_ts = float('inf')
+    if wants_recent:
+        for hit in search_result:
+            ts = hit.payload.get("timestamp", 0)
+            if ts > max_ts:
+                max_ts = ts
+            if ts < min_ts:
+                min_ts = ts
     
     for hit in search_result:
         result = {
@@ -178,7 +193,15 @@ def search_memories(client: QdrantClient, query: str, filters: dict = None, top_
             if keyword.lower() in text_content:
                 keyword_boost += 0.1  # Boost 0.1 per keyword match
         
-        result["score"] = min(1.0, result["score"] + keyword_boost)  # Cap at 1.0
+        # Recency boost: When user asks for "latest" memories, boost newer ones
+        recency_boost = 0
+        if wants_recent and max_ts > min_ts:
+            ts = result.get("timestamp", 0)
+            if ts and max_ts > min_ts:
+                # Normalize timestamp to 0-1 range and scale to max 0.25 boost
+                recency_boost = ((ts - min_ts) / (max_ts - min_ts)) * 0.25
+        
+        result["score"] = min(1.0, result["score"] + keyword_boost + recency_boost)
         result["keyword_matches"] = [kw for kw in keywords if kw.lower() in text_content]
         
         results.append(result)
@@ -187,9 +210,10 @@ def search_memories(client: QdrantClient, query: str, filters: dict = None, top_
     results.sort(key=lambda x: x["score"], reverse=True)
     results = results[:top_k]
     
-    logging.info(f"Search returned {len(results)} results (with keyword boosting)")
+    logging.info(f"Search returned {len(results)} results (with keyword boosting{', recency boost' if wants_recent else ''})")
     
     return results
+
 
 
 def _extract_keywords(query: str) -> List[str]:

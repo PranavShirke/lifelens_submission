@@ -43,7 +43,7 @@ export default function AvatarStage({
         <div className="relative flex flex-1 items-center justify-center">
           <div className="absolute h-[280px] w-[280px] rounded-full bg-[#FF8C42]/20 blur-[80px]" />
           <div className="relative z-10 h-[340px] w-full max-w-[420px]">
-            <Canvas camera={{ position: [0, 0, 5], fov: 45 }}>
+            <Canvas camera={{ position: [0, 0, 5], fov: 45 }} gl={{ precision: 'highp', powerPreference: 'high-performance' }}>
               <HolographicCore isSpeaking={isSpeaking} />
             </Canvas>
           </div>

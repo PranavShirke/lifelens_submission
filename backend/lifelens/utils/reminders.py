@@ -4,6 +4,7 @@ import json
 import os
 import uuid
 from datetime import datetime
+from lifelens.utils.ntfy_notifications import send_reminder_notification
 
 REMINDERS_FILE = "reminders.json"
 
@@ -22,14 +23,26 @@ def load_reminders():
                             "task": item.get("task", ""),
                             "time": item.get("time", ""),
                             "completed": False,
-                            "created_at": datetime.now().isoformat()
+                            "created_at": datetime.now().isoformat(),
+                            "last_notified_at": datetime.now().isoformat()
                         })
                     save_reminders(migrated)
                     return migrated
+                
+                # Backfill: ensure all reminders have last_notified_at
+                needs_save = False
+                for r in data:
+                    if "last_notified_at" not in r:
+                        r["last_notified_at"] = r.get("created_at", datetime.now().isoformat())
+                        needs_save = True
+                if needs_save:
+                    save_reminders(data)
+                
                 return data
         except:
             return []
     return []
+
 
 def save_reminders(reminders):
     with open(REMINDERS_FILE, "w") as f:
@@ -52,10 +65,18 @@ def add_reminder(patient_id, task, time_str):
         "task": task,
         "time": time_str,
         "completed": False,
-        "created_at": datetime.now().isoformat()
+        "created_at": datetime.now().isoformat(),
+        "last_notified_at": datetime.now().isoformat()
     }
     reminders.append(new_reminder)
     save_reminders(reminders)
+    
+    # Trigger NTFY notification
+    try:
+        send_reminder_notification(patient_id, task, time_str)
+    except Exception as e:
+        print(f"Failed to send NTFY notification: {e}")
+        
     return new_reminder
 
 def complete_reminder(reminder_id):

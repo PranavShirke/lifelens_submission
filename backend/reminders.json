@@ -6,14 +6,45 @@
     "time": "9 PM",
     "completed": true,
     "created_at": "2026-04-13T22:22:09.701097",
-    "completed_at": "2026-04-14T01:33:26.627688"
+    "completed_at": "2026-04-14T01:33:26.627688",
+    "last_notified_at": "2026-04-13T22:22:09.701097"
   },
   {
     "id": "rem-916088bd",
     "patient_id": "patient_1",
     "task": "complete cloud course",
     "time": "Anytime",
+    "completed": true,
+    "created_at": "2026-04-14T01:44:45.361265",
+    "completed_at": "2026-04-14T20:49:07.035088",
+    "last_notified_at": "2026-04-14T01:44:45.361265"
+  },
+  {
+    "id": "rem-c418df3d",
+    "patient_id": "test_patient_123",
+    "task": "Eat some healthy fruits",
+    "time": "5:00 PM",
     "completed": false,
-    "created_at": "2026-04-14T01:44:45.361265"
+    "created_at": "2026-04-14T17:17:14.464452",
+    "last_notified_at": "2026-04-14T17:17:14.464452"
+  },
+  {
+    "id": "rem-10cd6f7a",
+    "patient_id": "patient_1",
+    "task": "make script for presentation",
+    "time": "11pm today",
+    "completed": true,
+    "created_at": "2026-04-14T20:58:43.574247",
+    "last_notified_at": "2026-04-14T20:58:43.574247",
+    "completed_at": "2026-04-15T00:32:17.960676"
+  },
+  {
+    "id": "rem-9166a665",
+    "patient_id": "patient_1",
+    "task": "Do a final check tomorrow",
+    "time": "5AM",
+    "completed": false,
+    "created_at": "2026-04-15T00:32:02.863655",
+    "last_notified_at": "2026-04-15T00:32:02.863655"
   }
 ]

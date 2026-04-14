@@ -12,7 +12,8 @@ from lifelens.config import NTFY_TOPIC_URL, NTFY_MOOD_TOPIC_URL
 logger = logging.getLogger(__name__)
 
 
-def send_ntfy(title: str, body: str, priority: str = "default", tags: str = "bell", click_url: Optional[str] = None) -> bool:
+def send_ntfy(title: str, body: str, priority: str = "default", tags: str = "bell", 
+              click_url: Optional[str] = None, topic_url: Optional[str] = None) -> bool:
     """
     Sends push notification to ntfy topic.
     
@@ -22,6 +23,7 @@ def send_ntfy(title: str, body: str, priority: str = "default", tags: str = "bel
         priority: Priority level (1-5 or min, low, default, high, urgent)
         tags: Emoji tags for the notification
         click_url: Optional URL to open when notification is clicked
+        topic_url: Optional override for the ntfy topic URL
         
     Returns:
         True if successful, False otherwise
@@ -44,20 +46,22 @@ def send_ntfy(title: str, body: str, priority: str = "default", tags: str = "bel
             "Tags": tags
         }
         
+        target_url = topic_url or NTFY_TOPIC_URL
+        
         if click_url:
             headers["Click"] = click_url
         
         # Try HTTPS first
         try:
             response = requests.post(
-                NTFY_TOPIC_URL,
+                target_url,
                 data=body.encode("utf-8"),
                 headers=headers,
                 timeout=5
             )
         except requests.exceptions.RequestException as e:
             # Fallback to HTTP if ANY request error occurs (SSL, Connection, etc.)
-            http_url = NTFY_TOPIC_URL.replace("https://", "http://")
+            http_url = target_url.replace("https://", "http://")
             logger.warning(f"HTTPS failed ({e}), falling back to HTTP: {http_url}")
             try:
                 response = requests.post(
@@ -222,4 +226,61 @@ Please review recent memories and consider reaching out to the patient."""
             
     except Exception as e:
         logger.error(f"Error sending mood alert: {e}")
+        return False
+
+
+def send_medication_notification(patient_id: str, med_name: str, status: str, note: str = "") -> bool:
+    """
+    Sends notification about a medication event.
+    """
+    try:
+        if status == "taken":
+            title = f"Medication Taken - {patient_id}"
+            message = f"Dose recorded: {med_name} was taken."
+            priority = "default"
+            tags = "white_check_mark,pill"
+        elif status == "skipped":
+            title = f"Medication Skipped - {patient_id}"
+            message = f"Dose recorded: {med_name} was skipped."
+            if note:
+                message += f"\nNote: {note}"
+            priority = "high"
+            tags = "warning,pill"
+        else:
+            return False
+
+        return send_ntfy(title, message, priority, tags)
+    except Exception as e:
+        logger.error(f"Error in send_medication_notification: {e}")
+        return False
+
+
+def send_reminder_notification(patient_id: str, task: str, time_str: str, 
+                               topic_url: Optional[str] = None) -> bool:
+    """
+    Sends notification about a new active reminder.
+    """
+    try:
+        title = f"New Reminder - {patient_id}"
+        message = f"A new task has been added:\n• {task}\nTime: {time_str}"
+        return send_ntfy(title, message, priority="high", tags="alarm_clock,memo", topic_url=topic_url)
+    except Exception as e:
+        logger.error(f"Error in send_reminder_notification: {e}")
+        return False
+
+
+def send_nagging_notification(title: str, message: str, topic_url: Optional[str] = None) -> bool:
+    """
+    Sends a nagging (repeated) notification.
+    """
+    try:
+        return send_ntfy(
+            title=f"🕒 NAG: {title}",
+            body=message + "\n\n(This will repeat every 10 minutes until completed)",
+            priority="high",
+            tags="hourglass_flowing_sand,loudspeaker",
+            topic_url=topic_url
+        )
+    except Exception as e:
+        logger.error(f"Error in send_nagging_notification: {e}")
         return False

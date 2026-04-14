@@ -12,7 +12,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { getDashboardStats, getMoodData, getAgentInsights, getSuggestions, downloadMemoryBook } from '@/lib/api/dashboard';
 import { getMedications, getAdherenceData } from '@/lib/api/medications';
 import { getFamilyRequests, updateFamilyRequest, fulfillFamilyRequest } from '@/lib/api/family';
-import { getMemories, deleteMemory } from '@/lib/api/memories';
+import { getMemories, deleteMemory, createMemory, uploadImage, uploadAudio } from '@/lib/api/memories';
 import type { Medication, Memory } from '@/lib/types';
 import AddMedicationModal from '@/components/medication/AddMedicationModal';
 import {
@@ -39,6 +39,8 @@ function DashboardContent() {
   const { addToast } = useUIStore();
   const [memType, setMemType] = useState<'image' | 'audio' | 'text'>('text');
   const [textContent, setTextContent] = useState('');
+  const [memFile, setMemFile] = useState<File | null>(null);
+  const [savingMemory, setSavingMemory] = useState(false);
   const [requestTab, setRequestTab] = useState<'pending' | 'completed' | 'all'>('pending');
   const [isAddMedModalOpen, setIsAddMedModalOpen] = useState(false);
 
@@ -67,6 +69,8 @@ function DashboardContent() {
   // Fulfill request modal state
   const [fulfillModal, setFulfillModal] = useState<{ open: boolean; request: typeof familyRequests[0] | null }>({ open: false, request: null });
   const [fulfillContent, setFulfillContent] = useState('');
+  const [fulfillType, setFulfillType] = useState<'text' | 'image' | 'audio'>('text');
+  const [fulfillFile, setFulfillFile] = useState<File | null>(null);
   const [fulfilling, setFulfilling] = useState(false);
 
   // Fetch data from backend
@@ -169,14 +173,29 @@ function DashboardContent() {
 
   // Fulfill a family request
   const handleFulfillRequest = async () => {
-    if (!fulfillModal.request || !fulfillContent.trim() || !activePatientId) return;
+    if (!fulfillModal.request || !activePatientId) return;
+    // For text, require content; for image/audio, require file
+    if (fulfillType === 'text' && !fulfillContent.trim()) return;
+    if (fulfillType !== 'text' && !fulfillFile) return;
     setFulfilling(true);
     try {
-      await fulfillFamilyRequest(fulfillModal.request.id, activePatientId, fulfillContent);
+      // Upload the memory based on type
+      if (fulfillType === 'text') {
+        await fulfillFamilyRequest(fulfillModal.request.id, activePatientId, fulfillContent);
+      } else if (fulfillType === 'image' && fulfillFile) {
+        await uploadImage(fulfillFile, activePatientId, { caption: fulfillContent || fulfillModal.request.description });
+        // Also mark the request as completed
+        await fulfillFamilyRequest(fulfillModal.request.id, activePatientId, fulfillContent || `[Image: ${fulfillFile.name}]`);
+      } else if (fulfillType === 'audio' && fulfillFile) {
+        await uploadAudio(fulfillFile, activePatientId);
+        await fulfillFamilyRequest(fulfillModal.request.id, activePatientId, fulfillContent || `[Audio: ${fulfillFile.name}]`);
+      }
       setFamilyRequests(prev => prev.map(r => r.id === fulfillModal.request!.id ? { ...r, status: 'completed' } : r));
       addToast({ type: 'success', message: 'Request fulfilled & memory added to Memory Lane! 🎉' });
       setFulfillModal({ open: false, request: null });
       setFulfillContent('');
+      setFulfillFile(null);
+      setFulfillType('text');
       fetchData(); // refresh
     } catch {
       addToast({ type: 'error', message: 'Failed to fulfill request' });
@@ -593,11 +612,20 @@ function DashboardContent() {
                       onChange={(e) => setTextContent(e.target.value)} 
                     />
                   ) : (
-                    <motion.div 
+                    <motion.label 
                       key="file"
                       initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
                       className="flex-1 border-2 border-dashed border-slate-200 rounded-2xl p-6 flex flex-col items-center justify-center mb-4 bg-slate-50/50 hover:bg-indigo-50/50 hover:border-indigo-300 transition-colors cursor-pointer"
                     >
+                      <input
+                        type="file"
+                        accept={memType === 'image' ? 'image/*' : 'audio/*'}
+                        className="hidden"
+                        onChange={(e) => {
+                          const f = e.target.files?.[0] || null;
+                          setMemFile(f);
+                        }}
+                      />
                       <motion.div 
                         animate={{ y: [0, -4, 0] }} 
                         transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
@@ -605,19 +633,48 @@ function DashboardContent() {
                       >
                         {memType === 'image' ? <Camera className="w-5 h-5 text-indigo-400" /> : <Mic className="w-5 h-5 text-indigo-400" />}
                       </motion.div>
-                      <p className="text-[11px] font-bold tracking-wide text-slate-500">Drop your file here</p>
-                    </motion.div>
+                      {memFile ? (
+                        <p className="text-[11px] font-bold tracking-wide text-emerald-600">✓ {memFile.name}</p>
+                      ) : (
+                        <p className="text-[11px] font-bold tracking-wide text-slate-500">Click to select or drop your file here</p>
+                      )}
+                    </motion.label>
                   )}
                 </AnimatePresence>
                 <div className="flex justify-end mt-auto">
                   <motion.button 
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
-                    onClick={() => addToast({ type: 'success', message: 'Memory uploaded!' })} 
-                    className="w-full btn-gradient py-2.5 text-xs font-bold tracking-wide flex items-center justify-center gap-2 shadow-lg hover:shadow-pink-500/25 transition-all"
+                    disabled={savingMemory || (memType === 'text' ? !textContent.trim() : !memFile)}
+                    onClick={async () => {
+                      if (!activePatientId) { addToast({ type: 'error', message: 'No patient selected' }); return; }
+                      setSavingMemory(true);
+                      try {
+                        if (memType === 'text') {
+                          await createMemory({ content: textContent, patientId: activePatientId, type: 'text' });
+                          setTextContent('');
+                        } else if (memType === 'image' && memFile) {
+                          await uploadImage(memFile, activePatientId);
+                          setMemFile(null);
+                        } else if (memType === 'audio' && memFile) {
+                          await uploadAudio(memFile, activePatientId);
+                          setMemFile(null);
+                        }
+                        addToast({ type: 'success', message: 'Memory saved to vault! ✨' });
+                        fetchData();
+                      } catch (err) {
+                        addToast({ type: 'error', message: 'Failed to save memory. Check backend logs.' });
+                      } finally {
+                        setSavingMemory(false);
+                      }
+                    }} 
+                    className="w-full btn-gradient py-2.5 text-xs font-bold tracking-wide flex items-center justify-center gap-2 shadow-lg hover:shadow-pink-500/25 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <span>Save to Vault</span>
-                    <Star className="w-3.5 h-3.5" fill="currentColor" />
+                    {savingMemory ? (
+                      <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Saving...</>
+                    ) : (
+                      <><span>Save to Vault</span><Star className="w-3.5 h-3.5" fill="currentColor" /></>
+                    )}
                   </motion.button>
                 </div>
               </div>
@@ -828,26 +885,64 @@ function DashboardContent() {
                   <p className="text-sm text-slate-700">{fulfillModal.request.description}</p>
                 </div>
                 
-                {/* Memory content */}
+                {/* Memory type selector */}
                 <div>
-                  <label className="text-sm font-semibold text-slate-700 mb-2 block">Memory Content</label>
-                  <textarea 
-                    className="input-base min-h-[120px] resize-none"
-                    placeholder="Write the memory content that will be added to the Memory Lane..."
-                    value={fulfillContent}
-                    onChange={(e) => setFulfillContent(e.target.value)}
-                  />
+                  <label className="text-sm font-semibold text-slate-700 mb-2 block">Memory Type</label>
+                  <div className="flex bg-slate-100 p-1 rounded-xl shadow-inner">
+                    {(['text', 'image', 'audio'] as const).map((t) => (
+                      <button key={t} onClick={() => { setFulfillType(t); setFulfillFile(null); }}
+                        className={cn('flex-1 py-1.5 text-[11px] font-bold rounded-lg transition-colors duration-300',
+                          fulfillType === t ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700')}
+                      >
+                        {t === 'text' ? '📝 Text' : t === 'image' ? '📷 Image' : '🎤 Audio'}
+                      </button>
+                    ))}
+                  </div>
                 </div>
+
+                {/* Content area based on type */}
+                {fulfillType === 'text' ? (
+                  <div>
+                    <label className="text-sm font-semibold text-slate-700 mb-2 block">Memory Content</label>
+                    <textarea 
+                      className="input-base min-h-[120px] resize-none"
+                      placeholder="Write the memory content that will be added to the Memory Lane..."
+                      value={fulfillContent}
+                      onChange={(e) => setFulfillContent(e.target.value)}
+                    />
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <label className="block border-2 border-dashed border-slate-200 rounded-2xl p-6 text-center cursor-pointer hover:bg-indigo-50/50 hover:border-indigo-300 transition-colors">
+                      <input type="file" accept={fulfillType === 'image' ? 'image/*' : 'audio/*'} className="hidden"
+                        onChange={(e) => setFulfillFile(e.target.files?.[0] || null)} />
+                      {fulfillFile ? (
+                        <p className="text-sm font-bold text-emerald-600">✓ {fulfillFile.name}</p>
+                      ) : (
+                        <>
+                          {fulfillType === 'image' ? <Camera className="w-8 h-8 text-indigo-400 mx-auto mb-2" /> : <Mic className="w-8 h-8 text-indigo-400 mx-auto mb-2" />}
+                          <p className="text-xs font-bold text-slate-500">Click to select {fulfillType === 'image' ? 'an image' : 'an audio file'}</p>
+                        </>
+                      )}
+                    </label>
+                    <textarea 
+                      className="input-base min-h-[60px] resize-none"
+                      placeholder="Optional caption or note..."
+                      value={fulfillContent}
+                      onChange={(e) => setFulfillContent(e.target.value)}
+                    />
+                  </div>
+                )}
               </div>
               
               <div className="p-6 border-t border-slate-100 flex items-center justify-end gap-3">
-                <button onClick={() => setFulfillModal({ open: false, request: null })} className="px-5 py-2.5 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-100 transition-colors">
+                <button onClick={() => { setFulfillModal({ open: false, request: null }); setFulfillFile(null); setFulfillType('text'); }} className="px-5 py-2.5 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-100 transition-colors">
                   Cancel
                 </button>
                 <motion.button 
                   whileTap={{ scale: 0.97 }}
                   onClick={handleFulfillRequest}
-                  disabled={fulfilling || !fulfillContent.trim()}
+                  disabled={fulfilling || (fulfillType === 'text' ? !fulfillContent.trim() : !fulfillFile)}
                   className="px-5 py-2.5 rounded-xl bg-indigo-500 text-white text-sm font-bold hover:bg-indigo-600 transition-colors flex items-center gap-2 disabled:opacity-50"
                 >
                   {fulfilling ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}

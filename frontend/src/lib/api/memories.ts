@@ -86,7 +86,7 @@ export async function createMemory(memData: Partial<Memory>): Promise<Memory> {
 export async function uploadImage(
   file: File,
   patientId: string,
-  options?: { caption?: string; tags?: string; isMilestone?: boolean }
+  options?: { caption?: string; tags?: string; isMilestone?: boolean; location?: {lat: number, lon: number, name: string} }
 ): Promise<{ status: string; message: string }> {
   const formData = new FormData();
   formData.append('file', file);
@@ -94,6 +94,7 @@ export async function uploadImage(
   if (options?.caption) formData.append('caption', options.caption);
   if (options?.tags) formData.append('tags', options.tags);
   if (options?.isMilestone) formData.append('is_milestone', 'true');
+  if (options?.location) formData.append('location', JSON.stringify(options.location));
 
   const { data } = await apiClient.post('/upload/image', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },

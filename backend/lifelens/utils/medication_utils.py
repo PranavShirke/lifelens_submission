@@ -12,6 +12,7 @@ from qdrant_client import QdrantClient
 from qdrant_client.http import models
 import google.generativeai as genai
 from lifelens.config import GEMINI_API_KEY
+from lifelens.utils.ntfy_notifications import send_medication_notification
 
 logger = logging.getLogger(__name__)
 genai.configure(api_key=GEMINI_API_KEY)
@@ -87,6 +88,22 @@ def record_medication_event(client: QdrantClient, event_data: Dict) -> bool:
         )
         
         logger.info(f"✅ Recorded medication event: {event_data['status']} for {event_data['medication_id']} at {event_data.get('dose_time')}")
+        
+        # Trigger NTFY notification
+        try:
+            # Fetch medication name
+            med_details = get_medication_details(client, event_data["medication_id"], event_data["patient_id"])
+            med_name = med_details.get("name", "Unknown Medication") if med_details else "Unknown Medication"
+            
+            send_medication_notification(
+                patient_id=event_data["patient_id"],
+                med_name=med_name,
+                status=event_data["status"],
+                note=event_data.get("note", "")
+            )
+        except Exception as ntfy_err:
+            logger.warning(f"Failed to send medication NTFY notification: {ntfy_err}")
+            
         return True
         
     except Exception as e:

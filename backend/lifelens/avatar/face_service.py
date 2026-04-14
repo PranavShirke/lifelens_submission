@@ -47,6 +47,7 @@ class FaceService:
                 self.embedder = None
 
     def generate_embedding(self, image_path: str) -> List[float]:
+        """Generate embedding for the largest face in the image."""
         try:
             if self.has_native_models and self.face_cascade is not None and self.embedder is not None:
                 img_bgr = cv2.imread(image_path)  # type: ignore[union-attr]
@@ -69,10 +70,48 @@ class FaceService:
                 embedding = self.embedder.embeddings(face)[0]
                 return embedding.tolist()
 
-            # Fallback mode: returns stable image embedding even without face stack.
+            # Use fallback deterministic embedding so tests/users without heavy libs can proceed
             return _fallback_embedding(image_path)
         except Exception:
             return []
+
+    def generate_all_embeddings(self, image_path: str) -> List[List[float]]:
+        """Generate embeddings for ALL detected faces in the image.
+
+        Returns a list of embeddings, one per detected face.
+        This is critical for multi-person scenes where the enrolled
+        person may not be the largest face in the frame.
+        """
+        try:
+            if not (self.has_native_models and self.face_cascade is not None and self.embedder is not None):
+                # Fallback multi-embedding returns a single fallback embedding for the whole image
+                return [_fallback_embedding(image_path)]
+
+            img_bgr = cv2.imread(image_path)  # type: ignore[union-attr]
+            if img_bgr is None:
+                return []
+
+            img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)  # type: ignore[union-attr]
+            gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)  # type: ignore[union-attr]
+            faces = self.face_cascade.detectMultiScale(gray, 1.1, 4)
+
+            if len(faces) == 0:
+                return []
+
+            embeddings = []
+            for (x, y, w, h) in faces:
+                face = img_rgb[y : y + h, x : x + w]
+                face = Image.fromarray(face).resize((160, 160))
+                face = np.asarray(face).astype("float32") / 255.0
+                face = np.expand_dims(face, axis=0)
+
+                embedding = self.embedder.embeddings(face)[0]
+                embeddings.append(embedding.tolist())
+
+            return embeddings
+        except Exception:
+            return []
+
 
     def verify(self, img1_path: str, img2_path: str) -> bool:
         emb1 = self.generate_embedding(img1_path)

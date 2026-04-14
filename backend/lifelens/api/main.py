@@ -397,6 +397,7 @@ async def upload_image(
     caption: Optional[str] = Form(None),
     tags: Optional[str] = Form(None),
     is_milestone: bool = Form(False),
+    location: Optional[str] = Form(None),
     user: dict = Depends(verify_token),
 ):
     try:
@@ -428,6 +429,9 @@ async def upload_image(
             data["caption"] = f"{caption} ({result['caption']})"
         if is_milestone:
             data["category"] = "Achievement"
+        if location:
+            import json
+            data["location"] = json.loads(location)
 
         upsert_memory(client, "image", data)
         return {"status": "success", "message": "Image memory created"}

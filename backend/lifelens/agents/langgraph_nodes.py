@@ -119,11 +119,8 @@ def retriever_node(state: GraphState) -> Dict[str, Any]:
         return {"retrieved_memories": []}
         
     try:
-        # We need the qdrant client from somewhere. As we discussed, passing it natively in State can work if it isn't Pydantic-validated,
-        # but to be totally pure, we might fetch it globally or via a context. 
-        # For this scope, let's fetch it via get_client() from main or configure it via kwargs if possible.
-        from lifelens.api.main import get_client
-        client = get_client()
+        from lifelens.qdrant.client import get_qdrant_client
+        client = get_qdrant_client()
         
         filters = _parse_filters(plan.get("filters", []), query)
         results = search_memories(

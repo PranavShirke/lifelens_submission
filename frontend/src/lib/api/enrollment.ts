@@ -32,7 +32,6 @@ export async function enrollPerson(payload: {
   audioBlob?: Blob | null;
 }) {
   const formData = new FormData();
-  formData.append('patient_id', payload.patientId);
   formData.append('name', payload.name);
   formData.append('relation', payload.relation || 'Acquaintance');
   formData.append('notes', payload.notes || '');
@@ -42,7 +41,9 @@ export async function enrollPerson(payload: {
     formData.append('audio_file', payload.audioBlob, `voice-${Date.now()}.webm`);
   }
 
-  const { data } = await apiClient.post('/enrollment/person', formData, {
+  // Use the unified avatar remember/person endpoint
+  // This stores in the same Qdrant collection used by the HUD and avatar
+  const { data } = await apiClient.post('/v1/remember/person', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
     timeout: 60000,
   });
@@ -56,12 +57,12 @@ export async function enrollObject(payload: {
   imageFile: File;
 }) {
   const formData = new FormData();
-  formData.append('patient_id', payload.patientId);
   formData.append('name', payload.name);
   formData.append('notes', payload.notes || '');
   formData.append('file', payload.imageFile);
 
-  const { data } = await apiClient.post('/enrollment/object', formData, {
+  // Use the unified avatar remember/object endpoint
+  const { data } = await apiClient.post('/v1/remember/object', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
     timeout: 60000,
   });
@@ -69,6 +70,8 @@ export async function enrollObject(payload: {
 }
 
 export async function getEnrollmentRecords(patientId: string): Promise<EnrollmentRecord[]> {
-  const { data } = await apiClient.get(`/enrollment/${patientId}`);
+  // Fetch from the unified avatar enrollment history endpoint
+  const { data } = await apiClient.get(`/v1/enrollment/${patientId}`);
   return data.records || [];
 }
+

@@ -100,23 +100,27 @@ export default function FamilyRecapPanel() {
           <span className="badge badge-green ml-auto">This Week</span>
         </div>
         <div className="text-sm text-text-secondary leading-relaxed space-y-3">
-          {summary ? (
-            <p>{summary}</p>
-          ) : (
-            <>
-              <p>
-                This week, {patientName} had <strong>{recentCount} new memories</strong> recorded out of a total of {totalMemories} memories.
-                {adherenceRate > 0 && ` Medication adherence was ${adherenceRate}% for the week.`}
-              </p>
-              <p>
-                {avgMood > 6 
-                  ? `The overall mood trend has been positive, averaging ${avgMood}/10.` 
-                  : avgMood > 4 
-                    ? `The mood has been moderate this week, averaging ${avgMood}/10. Consider planning uplifting activities.`
-                    : `The mood has been lower than usual, averaging ${avgMood}/10. Extra care and attention may be needed.`
-                }
-              </p>
-            </>
+          {/* Always show real data-driven stats first */}
+          <p>
+            This week, {patientName} had <strong>{recentCount} new memories</strong> recorded out of a total of {totalMemories} memories.
+            {adherenceRate > 0 && ` Medication adherence was ${adherenceRate}% for the week.`}
+          </p>
+          <p>
+            {avgMood > 6 
+              ? `The overall mood trend has been positive, averaging ${avgMood}/10.` 
+              : avgMood > 4 
+                ? `The mood has been moderate this week, averaging ${avgMood}/10. Consider planning uplifting activities.`
+                : avgMood > 0
+                  ? `The mood has been lower than usual, averaging ${avgMood}/10. Extra care and attention may be needed.`
+                  : 'No mood data available for this period.'
+            }
+          </p>
+          {/* Show LLM narrative as additional AI insight if available */}
+          {summary && (
+            <div className="mt-3 p-3 rounded-xl bg-primary/5 border border-primary/10">
+              <p className="text-xs font-semibold text-primary mb-1">✨ AI Insight</p>
+              <p className="text-sm text-text-secondary">{summary}</p>
+            </div>
           )}
         </div>
       </div>

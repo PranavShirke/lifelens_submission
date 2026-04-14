@@ -50,17 +50,17 @@ def send_medication_reminder(client: QdrantClient, dose_info: Dict) -> bool:
     
     # Get ntfy topic URL for this patient
     from lifelens.config import NTFY_TOPIC_URL
-    patient_topic = NTFY_TOPIC_URL.replace("lifelens-caregiver-alerts", 
-                                            f"lifelens-med-{patient_id}")
+    patient_topic = NTFY_TOPIC_URL if "lifelens-caregiver-alerts" not in NTFY_TOPIC_URL else \
+                    NTFY_TOPIC_URL.replace("lifelens-caregiver-alerts", f"lifelens-med-{patient_id}")
     
     # Send ntfy notification
     try:
-        # Send to patient-specific topic
         send_success = send_ntfy(
             title=title,
             body=message,
             priority="high",
-            tags="pill,alarm"
+            tags="pill,alarm",
+            topic_url=patient_topic
         )
         
         if not send_success:

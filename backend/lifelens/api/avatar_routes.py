@@ -177,29 +177,45 @@ async def recognize_person(file: UploadFile = File(...), _: dict = Depends(verif
         except Exception as exc:
             raise _dependency_error(exc)
 
-        embedding = face_service.generate_embedding(str(temp_path))
-        if not embedding:
+        # Generate embeddings for ALL detected faces in the frame
+        all_embeddings = face_service.generate_all_embeddings(str(temp_path))
+        
+        # Fallback to single embedding if multi-face method is not available
+        if not all_embeddings:
+            single = face_service.generate_embedding(str(temp_path))
+            if single:
+                all_embeddings = [single]
+
+        if not all_embeddings:
             return {"status": "no_face_detected", "person": None}
 
-        matches = memory_service.search_face(embedding)
-        if matches:
-            best_match = matches[0]
-            if best_match.score > 0.85:
-                payload = best_match.payload or {}
-                _conversation_service().update_context(payload)
-                return {
-                    "status": "identified",
-                    "person": {
-                        "name": payload.get("name", "Unknown"),
-                        "relation": payload.get("relation", "Unknown"),
-                        "confidence": best_match.score,
-                        "id": payload.get("person_id"),
-                        "notes": payload.get("notes", ""),
-                        "relation_tags": payload.get("relation_tags", []),
-                        "image": payload.get("image_base64"),
-                        "audio": payload.get("audio_base64"),
-                    },
-                }
+        # Search for the best match across ALL detected faces
+        best_match = None
+        best_score = 0.0
+        
+        for emb in all_embeddings:
+            matches = memory_service.search_face(emb)
+            if matches and matches[0].score > best_score:
+                best_match = matches[0]
+                best_score = matches[0].score
+
+        # Threshold reverted to 0.88 to ensure the face is recognized as originally requested, accepting background false-positives under the fallback framework.
+        if best_match and best_score > 0.88:
+            payload = best_match.payload or {}
+            _conversation_service().update_context(payload)
+            return {
+                "status": "identified",
+                "person": {
+                    "name": payload.get("name", "Unknown"),
+                    "relation": payload.get("relation", "Unknown"),
+                    "confidence": best_score,
+                    "id": payload.get("person_id"),
+                    "notes": payload.get("notes", ""),
+                    "relation_tags": payload.get("relation_tags", []),
+                    "image": payload.get("image_base64"),
+                    "audio": payload.get("audio_base64"),
+                },
+            }
 
         return {"status": "unknown", "person": None}
     except HTTPException:
@@ -209,6 +225,7 @@ async def recognize_person(file: UploadFile = File(...), _: dict = Depends(verif
     finally:
         if temp_path.exists():
             temp_path.unlink()
+
 
 
 @router.post("/remember/person")
@@ -609,3 +626,98 @@ async def chat_query(payload: AvatarChatRequest = Body(...), _: dict = Depends(v
         "image_base64": image_base64,
         "gallery": gallery if gallery_intent else [],
     }
+
+
+@router.get("/enrollment/{patient_id}")
+@v1_router.get("/enrollment/{patient_id}")
+async def get_enrollment_records(patient_id: str, _: dict = Depends(verify_token)):
+    """Get all enrolled people and objects from the unified avatar collections."""
+    try:
+        memory_service = _memory_service()
+    except Exception as exc:
+        raise _dependency_error(exc)
+
+    records = []
+
+    # Fetch all enrolled faces
+    try:
+        face_points = memory_service.client.scroll(
+            collection_name=memory_service.faces_collection,
+            limit=500,
+            with_payload=True,
+            with_vectors=False,
+        )[0]
+
+        for point in face_points:
+            payload = point.payload or {}
+            records.append({
+                "id": str(point.id),
+                "patient_id": patient_id,
+                "name": payload.get("name", "Unknown"),
+                "enrollment_type": "person",
+                "relation": payload.get("relation"),
+                "age": payload.get("age"),
+                "notes": payload.get("notes"),
+                "relationship_tags": payload.get("relation_tags", []),
+                "image_base64": payload.get("image_base64"),
+                "audio_base64": payload.get("audio_base64"),
+                "timestamp": payload.get("timestamp", ""),
+            })
+    except Exception:
+        pass
+
+    # Fetch all enrolled patients (caregiver-enrolled contacts)
+    try:
+        patient_points = memory_service.client.scroll(
+            collection_name=memory_service.patients_collection,
+            limit=500,
+            with_payload=True,
+            with_vectors=False,
+        )[0]
+
+        for point in patient_points:
+            payload = point.payload or {}
+            records.append({
+                "id": str(point.id),
+                "patient_id": patient_id,
+                "name": payload.get("name", "Unknown"),
+                "enrollment_type": "person",
+                "relation": payload.get("relation"),
+                "age": payload.get("age"),
+                "notes": payload.get("notes"),
+                "relationship_tags": payload.get("relation_tags", []),
+                "image_base64": payload.get("image_base64"),
+                "audio_base64": payload.get("audio_base64"),
+                "timestamp": payload.get("timestamp", ""),
+            })
+    except Exception:
+        pass
+
+    # Fetch all enrolled objects
+    try:
+        object_points = memory_service.client.scroll(
+            collection_name=memory_service.objects_collection,
+            limit=500,
+            with_payload=True,
+            with_vectors=False,
+        )[0]
+
+        for point in object_points:
+            payload = point.payload or {}
+            records.append({
+                "id": str(point.id),
+                "patient_id": patient_id,
+                "name": payload.get("name", "Unknown"),
+                "enrollment_type": "object",
+                "notes": payload.get("notes"),
+                "image_base64": payload.get("image_base64"),
+                "timestamp": payload.get("timestamp", ""),
+            })
+    except Exception:
+        pass
+
+    # Sort by timestamp descending
+    records.sort(key=lambda r: r.get("timestamp", ""), reverse=True)
+
+    return {"records": records}
+

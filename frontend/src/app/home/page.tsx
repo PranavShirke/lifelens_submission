@@ -115,7 +115,8 @@ function PatientHomeContent() {
       if (memoryType === 'image' && capturedFile) {
         await uploadImage(capturedFile, activePatientId || 'patient_1', {
           tags: personTags,
-          isMilestone
+          isMilestone,
+          location: location || undefined
         });
         const freshMemories = await getMemories(activePatientId || 'patient_1');
         setMemories(freshMemories);

@@ -41,14 +41,14 @@ export default function HolographicCore({ isSpeaking }: HolographicCoreProps) {
           <MeshDistortMaterial
             color={isSpeaking ? "#FF8C42" : "#9896B0"}
             attach="material"
-            distort={isSpeaking ? 0.6 : 0.2}
-            speed={isSpeaking ? 4 : 1.5}
-            roughness={0.1}
-            metalness={0.8}
-            clearcoat={1}
-            clearcoatRoughness={0.1}
+            distort={isSpeaking ? 0.61 : 0.21}
+            speed={isSpeaking ? 4.01 : 1.51}
+            roughness={0.11}
+            metalness={0.79}
+            clearcoat={0.99}
+            clearcoatRoughness={0.11}
             emissive={isSpeaking ? "#FF8C42" : "#5A576E"}
-            emissiveIntensity={isSpeaking ? 0.5 : 0.2}
+            emissiveIntensity={isSpeaking ? 0.51 : 0.21}
           />
         </Sphere>
 
