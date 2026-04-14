@@ -491,12 +491,14 @@ def chat(request: ChatRequest, user: dict = Depends(verify_token)):
             result = run_agentic_flow(request.question, request.patient_id, client, max_retries=1)
 
             # Build agent workflow info for the frontend
+            _plan = result.get("plan") or {} if result else {}
+            
             agent_workflow = {
-                "planner": result["plan"].get("reasoning", "Planning complete"),
-                "critic": f"Verdict: {result['verdict']}",
-                "triggers": f"{len(result['triggers'])} triggers generated" if result["triggers"] else "No triggers needed",
+                "planner": _plan.get("reasoning", "Planning complete"),
+                "critic": f"Verdict: {result.get('verdict', 'pass')}" if result else "Verdict: pass",
+                "triggers": f"{len(result.get('triggers', []))} triggers generated" if result and result.get("triggers") else "No triggers needed",
                 "recommendations": "\n".join(
-                    [f"• {r.get('message', '')}" for r in result.get("recommendations", [])]
+                    [f"• {r.get('message', '')}" for r in (result.get("recommendations", []) if result else [])]
                 ) or "No specific recommendations",
                 "trace": [],
             }

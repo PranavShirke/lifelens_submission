@@ -33,7 +33,7 @@ const toolItems: NavItem[] = [
   { label: 'Medications', href: '/caretaker/medications', icon: Pill, roles: ['caretaker'] },
   { label: 'Memory Map', href: '/map', icon: MapPin },
   { label: 'Health Data', href: '/wearable', icon: HeartPulse, roles: ['patient', 'caretaker'] },
-  { label: 'Settings', href: '#', icon: Settings },
+  { label: 'Settings', href: '/settings', icon: Settings },
 ];
 
 export default function Sidebar() {

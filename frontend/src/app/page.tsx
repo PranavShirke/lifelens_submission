@@ -1043,7 +1043,7 @@ export default function LandingPage() {
           ))}
         </div>
         <div className="footer-bottom">
-          <span>© 2025 LifeLens. Built for Qdrant Convolve 4.0.</span>
+          <span>© 2025 LifeLens. Built for AMD slingshot</span>
           <div>
             <a href="#">Privacy</a>
             <a href="#">Terms</a>

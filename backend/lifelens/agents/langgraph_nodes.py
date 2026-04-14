@@ -130,6 +130,33 @@ def retriever_node(state: GraphState) -> Dict[str, Any]:
             top_k=5,
             patient_id=state["patient_id"]
         )
+        
+        # Inject medication scheduling context directly into results if queried
+        q_lower = query.lower()
+        if "medic" in q_lower or "pill" in q_lower or "rx" in q_lower or plan.get("intent") == "medication_query":
+            try:
+                from lifelens.agents.medication_scheduler import get_todays_medications
+                meds = get_todays_medications(client, state["patient_id"])
+                
+                med_summary = "MEDICATION SCHEDULE FOR TODAY:\n"
+                if not meds:
+                    med_summary += "No medications scheduled for today."
+                for m in meds:
+                    status = m.get("status", "pending")
+                    time = m.get("dose_time", "unknown time")
+                    rx = m.get("medication_name", m.get("name", "Medicine"))
+                    med_summary += f"- {rx} at {time} (Status: {status})\n"
+                
+                from datetime import datetime
+                results.insert(0, {
+                    "id": "meds_today_live_schedule",
+                    "type": "text",
+                    "content": med_summary,
+                    "timestamp": datetime.utcnow().isoformat()
+                })
+            except Exception as med_err:
+                logger.error(f"Failed to inject medication context: {med_err}")
+
         return {"retrieved_memories": results}
     except Exception as e:
         logger.error(f"Retriever failed: {e}")

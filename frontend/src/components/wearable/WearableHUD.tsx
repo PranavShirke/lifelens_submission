@@ -55,46 +55,21 @@ export default function WearableHUD({ onClose, onCapture }: WearableHUDProps) {
 
           if (faceRes) {
             if (faceRes.status === 'identified' && faceRes.person?.name) {
-              updatedDetections.push({
-                id: Date.now() + 1,
-                x: 10 + Math.random() * 80,
-                y: 10 + Math.random() * 80,
-                label: `TARGET LOCKED: ${faceRes.person.name.toUpperCase()}`
-              });
+              updatedDetections.push({ id: 1, x: 5, y: 35, label: `FACE: ${faceRes.person.name.toUpperCase()}` });
             } else if (faceRes.status === 'unknown') {
-              updatedDetections.push({
-                id: Date.now() + 2,
-                x: 10 + Math.random() * 80,
-                y: 10 + Math.random() * 80,
-                label: `UNKNOWN SUBJECT (Not Enrolled)`
-              });
+              updatedDetections.push({ id: 1, x: 5, y: 35, label: `FACE: UNKNOWN` });
             }
           }
 
           if (objRes) {
             if (objRes.status === 'identified' && objRes.object?.name) {
-              updatedDetections.push({
-                id: Date.now() + 3,
-                x: 10 + Math.random() * 80,
-                y: 10 + Math.random() * 80,
-                label: `OBJ DETECTED: ${objRes.object.name.toUpperCase()}`
-              });
+              updatedDetections.push({ id: 2, x: 5, y: 45, label: `OBJECT: ${objRes.object.name.toUpperCase()}` });
             } else if (objRes.status === 'unknown') {
-              updatedDetections.push({
-                id: Date.now() + 4,
-                x: 10 + Math.random() * 80,
-                y: 10 + Math.random() * 80,
-                label: `UNKNOWN OBJECT`
-              });
+              updatedDetections.push({ id: 2, x: 5, y: 45, label: `OBJECT: UNKNOWN` });
             }
           }
 
-          if (updatedDetections.length > 0) {
-             setDetections(prev => [...prev.slice(-2), ...updatedDetections]);
-             setTimeout(() => {
-                setDetections(prev => prev.filter(d => !updatedDetections.map(ud => ud.id).includes(d.id)));
-             }, 3000);
-          }
+          setDetections(updatedDetections);
         } catch (e) {
           // Silent catch for polling misses
         }

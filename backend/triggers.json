@@ -3289,6 +3289,138 @@
       "patient_id": "patient_1",
       "created_at": "2026-04-15T00:31:23.816860",
       "dismissed": false
+    },
+    {
+      "type": "memory_gap",
+      "title": "Quick Recap Reminder",
+      "message": "No memories logged in 12 minutes. (Demo Mode)",
+      "priority": "high",
+      "action": "capture_memory",
+      "timestamp": "2026-04-15T00:51:54.551673",
+      "id": "ac60aadd-11f9-4c21-96fd-edb8693dc5ef",
+      "patient_id": "patient_1",
+      "created_at": "2026-04-15T00:51:54.696417",
+      "dismissed": false
+    },
+    {
+      "type": "media_gap",
+      "title": "Photo Suggestion (Demo)",
+      "message": "No photos captured in 12 minutes. (Demo Mode)",
+      "priority": "medium",
+      "action": "capture_photo",
+      "timestamp": "2026-04-15T00:51:54.551673",
+      "id": "0359e12f-77cf-4e65-860a-4cb6a0c09897",
+      "patient_id": "patient_1",
+      "created_at": "2026-04-15T00:51:54.750465",
+      "dismissed": false
+    },
+    {
+      "type": "memory_gap",
+      "title": "Quick Recap Reminder",
+      "message": "No memories logged in 21 minutes. (Demo Mode)",
+      "priority": "high",
+      "action": "capture_memory",
+      "timestamp": "2026-04-15T01:00:51.560755",
+      "id": "888eb037-9e69-40fc-8fb3-c8cc5e1b8a78",
+      "patient_id": "patient_1",
+      "created_at": "2026-04-15T01:00:51.701427",
+      "dismissed": false
+    },
+    {
+      "type": "media_gap",
+      "title": "Photo Suggestion (Demo)",
+      "message": "No photos captured in 21 minutes. (Demo Mode)",
+      "priority": "medium",
+      "action": "capture_photo",
+      "timestamp": "2026-04-15T01:00:51.560755",
+      "id": "eebce653-cee0-4fe2-a046-4fe1f5defa93",
+      "patient_id": "patient_1",
+      "created_at": "2026-04-15T01:00:51.731475",
+      "dismissed": false
+    },
+    {
+      "type": "memory_gap",
+      "title": "Quick Recap Reminder",
+      "message": "No memories logged in 24 minutes. (Demo Mode)",
+      "priority": "high",
+      "action": "capture_memory",
+      "timestamp": "2026-04-15T01:04:45.342205",
+      "id": "e74ea43b-077c-4b87-a23a-b509b9f21695",
+      "patient_id": "patient_1",
+      "created_at": "2026-04-15T01:04:45.494995",
+      "dismissed": false
+    },
+    {
+      "type": "media_gap",
+      "title": "Photo Suggestion (Demo)",
+      "message": "No photos captured in 24 minutes. (Demo Mode)",
+      "priority": "medium",
+      "action": "capture_photo",
+      "timestamp": "2026-04-15T01:04:45.342205",
+      "id": "d114095a-cba6-4729-972c-fb80b1e6f772",
+      "patient_id": "patient_1",
+      "created_at": "2026-04-15T01:04:45.517646",
+      "dismissed": false
+    },
+    {
+      "type": "memory_gap",
+      "title": "Quick Recap Reminder",
+      "message": "No memories logged in 27 minutes. (Demo Mode)",
+      "priority": "high",
+      "action": "capture_memory",
+      "timestamp": "2026-04-15T01:07:28.091883",
+      "id": "ca9e668f-c8d5-48a7-bf01-252a4007ad7c",
+      "patient_id": "patient_1",
+      "created_at": "2026-04-15T01:07:28.231319",
+      "dismissed": false
+    },
+    {
+      "type": "memory_gap",
+      "title": "Quick Recap Reminder",
+      "message": "No memories logged in 31 minutes. (Demo Mode)",
+      "priority": "high",
+      "action": "capture_memory",
+      "timestamp": "2026-04-15T01:11:04.907435",
+      "id": "4ef61e5d-a943-47b4-a8a2-fc86b5d6f66f",
+      "patient_id": "patient_1",
+      "created_at": "2026-04-15T01:11:05.042798",
+      "dismissed": false
+    },
+    {
+      "type": "media_gap",
+      "title": "Photo Suggestion (Demo)",
+      "message": "No photos captured in 31 minutes. (Demo Mode)",
+      "priority": "medium",
+      "action": "capture_photo",
+      "timestamp": "2026-04-15T01:11:04.907435",
+      "id": "c046e363-a9b2-42e9-aa9c-de217ae9030e",
+      "patient_id": "patient_1",
+      "created_at": "2026-04-15T01:11:05.065963",
+      "dismissed": false
+    },
+    {
+      "type": "memory_gap",
+      "title": "Quick Recap Reminder",
+      "message": "No memories logged in 32 minutes. (Demo Mode)",
+      "priority": "high",
+      "action": "capture_memory",
+      "timestamp": "2026-04-15T01:11:48.096355",
+      "id": "e798e2ba-a99c-40bd-93cd-748626fc6c1f",
+      "patient_id": "patient_1",
+      "created_at": "2026-04-15T01:11:48.231902",
+      "dismissed": false
+    },
+    {
+      "type": "media_gap",
+      "title": "Photo Suggestion (Demo)",
+      "message": "No photos captured in 32 minutes. (Demo Mode)",
+      "priority": "medium",
+      "action": "capture_photo",
+      "timestamp": "2026-04-15T01:11:48.096355",
+      "id": "372b6a7b-0d40-494e-a335-35636fe0bb3c",
+      "patient_id": "patient_1",
+      "created_at": "2026-04-15T01:11:48.272888",
+      "dismissed": false
     }
   ]
 }

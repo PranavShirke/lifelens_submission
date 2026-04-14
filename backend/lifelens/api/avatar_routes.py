@@ -436,7 +436,7 @@ async def find_object(file: UploadFile = File(...), _: dict = Depends(verify_tok
 
         match_threshold = 0.85
         if not getattr(object_service, "native_embedding_enabled", True):
-            match_threshold = 0.98
+            match_threshold = 0.88
 
         if matches and matches[0].score > match_threshold:
             best = matches[0]
