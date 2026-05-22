@@ -24,7 +24,7 @@ export default function AppShell({ children, fullBleed = false }: AppShellProps)
   }, [pathname, setSidebarOpen]);
 
   return (
-    <div className="flex h-screen w-full relative overflow-hidden" style={{ background: 'linear-gradient(160deg, #FFF5E6 0%, #FDFAF6 40%, #F7F3EC 70%, #EAF2E9 100%)' }}>
+    <div className="app-shell flex h-screen w-full relative overflow-hidden" style={{ background: 'linear-gradient(150deg, #FFF1D8 0%, #FDFAF6 48%, #FDEED8 100%)' }}>
       {/* Atmospheric washes */}
       <div className="bg-mesh-1"></div>
       <div className="bg-mesh-2"></div>

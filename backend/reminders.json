@@ -26,7 +26,7 @@
     "time": "5:00 PM",
     "completed": false,
     "created_at": "2026-04-14T17:17:14.464452",
-    "last_notified_at": "2026-04-14T17:17:14.464452"
+    "last_notified_at": "2026-05-21T15:38:43.814145"
   },
   {
     "id": "rem-10cd6f7a",
@@ -57,5 +57,25 @@
     "created_at": "2026-04-15T01:05:08.686621",
     "last_notified_at": "2026-04-15T01:05:08.686621",
     "completed_at": "2026-04-15T01:05:30.491875"
+  },
+  {
+    "id": "rem-279f2831",
+    "patient_id": "patient_1",
+    "task": "going to amd",
+    "time": "10am",
+    "completed": true,
+    "created_at": "2026-04-15T08:46:27.160894",
+    "last_notified_at": "2026-04-16T21:12:10.807319",
+    "completed_at": "2026-04-16T21:13:24.877239"
+  },
+  {
+    "id": "rem-cabd29de",
+    "patient_id": "patient_1",
+    "task": "testing from script",
+    "time": "now",
+    "completed": true,
+    "created_at": "2026-05-16T20:52:06.708301",
+    "last_notified_at": "2026-05-16T21:12:48.943734",
+    "completed_at": "2026-05-16T21:17:07.743882"
   }
 ]

@@ -54,7 +54,7 @@ function MemoryLaneContent() {
   });
 
   return (
-    <div className="max-w-6xl mx-auto pb-20">
+    <div className="max-w-6xl mx-auto pb-20 overflow-x-hidden">
       {/* Header Section */}
       <div className="mb-10">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">

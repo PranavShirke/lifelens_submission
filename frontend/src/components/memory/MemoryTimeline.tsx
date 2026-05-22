@@ -73,7 +73,7 @@ export default function MemoryTimeline({ memories, loading }: MemoryTimelineProp
   }
 
   return (
-    <div className="space-y-12">
+    <div className="space-y-12 overflow-x-hidden">
       {groupedMemories.map((yearGroup) => (
         <div key={yearGroup.year} className="relative">
           {/* Year Header */}
@@ -101,6 +101,7 @@ export default function MemoryTimeline({ memories, loading }: MemoryTimelineProp
                       initial={{ opacity: 0, scale: 0.95 }}
                       whileInView={{ opacity: 1, scale: 1 }}
                       viewport={{ once: true }}
+                      className="h-full"
                     >
                       <MemoryCard memory={mem} />
                     </motion.div>

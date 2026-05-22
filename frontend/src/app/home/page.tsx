@@ -70,11 +70,11 @@ function PatientHomeContent() {
   useEffect(() => {
     const pid = activePatientId || 'patient_1';
     getMemories(pid).then((m) => { setMemories(m); setLoadingMemories(false); }).catch(() => setLoadingMemories(false));
-    getMedications(pid).then(setMedications).catch(() => {});
-    getMedicationEvents(pid).then(setMedEvents).catch(() => {});
-    getTriggers(pid).then(setTriggers).catch(() => {});
-    getSuggestions(pid).then(setSuggestionsData).catch(() => {});
-    getReminders(pid).then(setReminders).catch(() => {});
+    getMedications(pid).then(setMedications).catch(() => { });
+    getMedicationEvents(pid).then(setMedEvents).catch(() => { });
+    getTriggers(pid).then(setTriggers).catch(() => { });
+    getSuggestions(pid).then(setSuggestionsData).catch(() => { });
+    getReminders(pid).then(setReminders).catch(() => { });
   }, [activePatientId]);
 
   const handleAddReminder = async () => {
@@ -98,7 +98,7 @@ function PatientHomeContent() {
     } catch { addToast({ type: 'error', message: 'Failed to complete reminder' }); }
   };
 
-  useEffect(() => { 
+  useEffect(() => {
     if (chatEndRef.current && chatEndRef.current.parentElement) {
       chatEndRef.current.parentElement.scrollTop = chatEndRef.current.parentElement.scrollHeight;
     }
@@ -109,7 +109,7 @@ function PatientHomeContent() {
       addToast({ type: 'error', message: 'Please capture or upload an image first.' });
       return;
     }
-    
+
     setSaving(true);
     try {
       if (memoryType === 'image' && capturedFile) {
@@ -131,7 +131,7 @@ function PatientHomeContent() {
         });
         setMemories((prev) => [mem, ...prev]);
       }
-      
+
       addToast({ type: 'success', message: 'Memory saved successfully! 🧠' });
       setTextContent(''); setPersonTags(''); setLocation(null); setIsMilestone(false); setCapturedFile(null); setShowWebcam(false);
     } catch { addToast({ type: 'error', message: 'Failed to save memory' }); }
@@ -141,7 +141,7 @@ function PatientHomeContent() {
   const handleToggleMedication = async (medId: string, currentTime: string, currentStatus: string) => {
     // Priority: Store activePatientId > User's patientId > User's ID
     const pid = activePatientId || user?.patientId || user?.id;
-    
+
     if (!pid || !medId) {
       console.error('[Medication] Missing IDs:', { pid, medId });
       addToast({ type: 'error', message: 'Unable to identify patient or medication' });
@@ -149,7 +149,7 @@ function PatientHomeContent() {
     }
 
     const newStatus = currentStatus === 'taken' ? 'skipped' : 'taken';
-    
+
     // Optimistic update
     const previousEvents = [...medEvents];
     setMedEvents(prev => prev.map(e => (e.medicationId === medId && e.doseTime === currentTime) ? { ...e, status: newStatus } : e));
@@ -158,12 +158,14 @@ function PatientHomeContent() {
       console.log('[Medication] Updating status:', { pid, medId, currentTime, newStatus });
       await markDose('temp-id', newStatus, '', medId, pid, currentTime);
       addToast({ type: 'success', message: `Medication marked as ${newStatus}` });
+      // Re-fetch to sync with server truth
+      getMedicationEvents(pid).then(setMedEvents).catch(() => { });
     } catch (error: any) {
       console.error('[Medication] Update failed:', error.response?.data || error.message);
       setMedEvents(previousEvents);
-      addToast({ 
-        type: 'error', 
-        message: error.response?.data?.detail || 'Failed to update medication status' 
+      addToast({
+        type: 'error',
+        message: error.response?.data?.detail || 'Failed to update medication status'
       });
     }
   };
@@ -253,7 +255,7 @@ function PatientHomeContent() {
           <div className="card h-full shadow-lg flex flex-col items-center justify-center p-3 relative overflow-hidden group cursor-pointer" style={{ background: 'linear-gradient(135deg, #1E1B2E, #2A2640)' }}>
             <div className="absolute inset-0 bg-gradient-to-b from-[#FF8C42]/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
             <Zap className="w-5 h-5 text-[#FFC299] relative z-10" fill="currentColor" />
-            <span className="text-[9px] font-black uppercase tracking-widest mt-2 relative z-10 text-center leading-tight text-white/80">AI<br/>Tip</span>
+            <span className="text-[9px] font-black uppercase tracking-widest mt-2 relative z-10 text-center leading-tight text-white/80">AI<br />Tip</span>
           </div>
         </motion.div>
       </div>
@@ -300,8 +302,8 @@ function PatientHomeContent() {
                     ]).map((t) => (
                       <button key={t.key} onClick={() => setMemoryType(t.key)}
                         className={cn("flex-1 flex items-center justify-center gap-2.5 py-4 text-sm font-bold transition-all border-b-2 relative",
-                          memoryType === t.key 
-                            ? 'text-slate-900 border-slate-900 bg-white' 
+                          memoryType === t.key
+                            ? 'text-slate-900 border-slate-900 bg-white'
                             : 'text-slate-400 border-transparent hover:text-slate-600 hover:bg-white/50')}>
                         <t.icon className="w-4 h-4" />
                         {t.label}
@@ -314,15 +316,15 @@ function PatientHomeContent() {
                       {memoryType === 'image' && (
                         <motion.div key="img" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                           className="border-2 border-dashed border-slate-200 rounded-2xl p-8 flex flex-col items-center justify-center bg-indigo-50/10 hover:bg-indigo-50/30 hover:border-indigo-300 transition-all group relative">
-                          
+
                           {showWebcam ? (
-                            <WebcamCapture 
-                                onCapture={(file) => { 
-                                  setCapturedFile(file); 
-                                  setShowWebcam(false); 
-                                  addToast({type: 'success', message: 'Photo securely captured!'}); 
-                                }} 
-                                onCancel={() => setShowWebcam(false)} 
+                            <WebcamCapture
+                              onCapture={(file) => {
+                                setCapturedFile(file);
+                                setShowWebcam(false);
+                                addToast({ type: 'success', message: 'Photo securely captured!' });
+                              }}
+                              onCancel={() => setShowWebcam(false)}
                             />
                           ) : (
                             <>
@@ -337,10 +339,10 @@ function PatientHomeContent() {
                                 <label className="flex items-center gap-2 px-5 py-2 rounded-xl bg-white border border-slate-200 text-xs font-bold text-slate-600 hover:shadow-md transition-all cursor-pointer">
                                   <Upload className="w-3.5 h-3.5" />Browse
                                   <input type="file" accept="image/*" className="hidden" onChange={(e) => {
-                                      if (e.target.files && e.target.files.length > 0) {
-                                          setCapturedFile(e.target.files[0]);
-                                          addToast({type: 'success', message: 'Image attached!'});
-                                      }
+                                    if (e.target.files && e.target.files.length > 0) {
+                                      setCapturedFile(e.target.files[0]);
+                                      addToast({ type: 'success', message: 'Image attached!' });
+                                    }
                                   }} />
                                 </label>
                                 <button onClick={() => setShowWebcam(true)} className="flex items-center gap-2 px-5 py-2 rounded-xl bg-indigo-500 text-white text-xs font-bold shadow-lg shadow-indigo-200 hover:bg-indigo-600 transition-all cursor-pointer">
@@ -401,7 +403,7 @@ function PatientHomeContent() {
               <motion.div key="ask" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }}>
                 <div className="card overflow-hidden flex flex-col shadow-xl p-0" style={{ height: 'min(600px, calc(100vh - 320px))' }}>
                   <div className="absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r from-[#FF8C42] via-[#FFC299] to-[#7A9E7A]" />
-                  
+
                   <div className="px-6 py-4 border-b border-[#FFC299]/15 bg-white/70 backdrop-blur-md flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <div className="w-9 h-9 rounded-xl bg-[#FFF5E6] border border-[#FFC299]/20 flex items-center justify-center">
@@ -475,10 +477,10 @@ function PatientHomeContent() {
           {/* ─── AI Insights + Live Alerts (Moved here to fill gap) ─── */}
           <motion.div variants={fadeUp} className="grid grid-cols-1 lg:grid-cols-12 gap-5">
             {/* AI Suggestions — compact, max 2 */}
-            <div className="lg:col-span-5 card shadow-lg p-5 bg-gradient-to-br from-indigo-50/40 to-white border-indigo-100/40">
+            <div className="lg:col-span-5 card p-5 bg-gradient-to-br from-indigo-50/70 to-white border-2 border-[#1E1B2E] shadow-[6px_6px_0_#1E1B2E]">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
-                  <div className="p-1.5 bg-indigo-100 rounded-lg"><Lightbulb className="w-3.5 h-3.5 text-indigo-500" /></div>
+                  <div className="p-1.5 bg-indigo-100 rounded-lg border-2 border-[#1E1B2E] shadow-[2px_2px_0_#1E1B2E]"><Lightbulb className="w-3.5 h-3.5 text-indigo-500" /></div>
                   <h4 className="font-extrabold text-sm text-slate-900 tracking-tight">AI Insights</h4>
                 </div>
                 <span className="text-[9px] font-bold text-indigo-400 uppercase tracking-widest">{suggestions.length} total</span>
@@ -490,9 +492,9 @@ function PatientHomeContent() {
                   </div>
                 ) : (
                   suggestions.slice(0, 2).map((s) => (
-                    <motion.div whileHover={{ x: 2 }} key={s.id} className="p-3 rounded-xl bg-white border border-indigo-50 shadow-sm hover:shadow-md hover:border-indigo-200 transition-all cursor-default group">
+                    <motion.div whileHover={{ x: 2 }} key={s.id} className="p-3 rounded-xl bg-white border-2 border-[#1E1B2E] shadow-[3px_3px_0_rgba(30,27,46,0.45)] transition-all cursor-default group">
                       <div className="flex items-start gap-2.5">
-                        <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5",
+                        <div className={cn("w-7 h-7 rounded-lg border-2 border-[#1E1B2E] shadow-[2px_2px_0_rgba(30,27,46,0.35)] flex items-center justify-center flex-shrink-0 mt-0.5",
                           s.type === 'warning' ? 'bg-yellow-50 text-yellow-500' : s.type === 'insight' ? 'bg-blue-50 text-blue-500' : 'bg-indigo-50 text-indigo-500'
                         )}>
                           {s.type === 'warning' ? <AlertTriangle className="w-3.5 h-3.5" /> : s.type === 'insight' ? <TrendingUp className="w-3.5 h-3.5" /> : <Lightbulb className="w-3.5 h-3.5" />}
@@ -509,17 +511,17 @@ function PatientHomeContent() {
             </div>
 
             {/* Live Alerts — real-time triggers with dismiss */}
-            <div className="lg:col-span-7 card shadow-lg p-5 border-slate-200/80">
+            <div className="lg:col-span-7 card p-5 border-2 border-[#1E1B2E] shadow-[6px_6px_0_#1E1B2E]">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
-                  <div className="p-1.5 bg-red-50 rounded-lg"><AlertTriangle className="w-3.5 h-3.5 text-red-500" /></div>
+                  <div className="p-1.5 bg-red-50 rounded-lg border-2 border-[#1E1B2E] shadow-[2px_2px_0_#1E1B2E]"><AlertTriangle className="w-3.5 h-3.5 text-red-500" /></div>
                   <h4 className="font-extrabold text-sm text-slate-900 tracking-tight">Live Alerts</h4>
                 </div>
                 {triggers.length > 0 && (
-                  <span className={cn("px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest",
-                    triggers.some(t => t.severity === 'urgent') ? "bg-red-100 text-red-600" : 
-                    triggers.some(t => t.severity === 'high') ? "bg-yellow-100 text-yellow-700" :
-                    "bg-slate-100 text-slate-500"
+                  <span className={cn("px-2 py-0.5 rounded-[10px] border-2 border-[#1E1B2E] shadow-[2px_2px_0_#1E1B2E] text-[9px] font-black uppercase tracking-widest",
+                    triggers.some(t => t.severity === 'urgent') ? "bg-red-100 text-red-600" :
+                      triggers.some(t => t.severity === 'high') ? "bg-yellow-100 text-yellow-700" :
+                        "bg-slate-100 text-slate-500"
                   )}>
                     {triggers.length} active
                   </span>
@@ -549,14 +551,14 @@ function PatientHomeContent() {
                           animate={{ opacity: 1, x: 0 }}
                           exit={{ opacity: 0, x: 20, height: 0 }}
                           layout
-                          className={cn("p-3 rounded-xl border flex items-start gap-3 group transition-colors", colors.bg, colors.border)}
+                          className={cn("p-3 rounded-xl border-2 border-[#1E1B2E] shadow-[3px_3px_0_rgba(30,27,46,0.45)] flex items-start gap-3 group transition-colors", colors.bg, colors.border)}
                         >
-                          <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5 bg-white shadow-sm", colors.icon)}>
+                          <div className={cn("w-7 h-7 rounded-lg border-2 border-[#1E1B2E] shadow-[2px_2px_0_rgba(30,27,46,0.35)] flex items-center justify-center flex-shrink-0 mt-0.5 bg-white", colors.icon)}>
                             {trigger.severity === 'urgent' ? <AlertTriangle className="w-3.5 h-3.5" /> : <Info className="w-3.5 h-3.5" />}
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-0.5">
-                              <span className={cn("px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-widest", colors.badge)}>
+                              <span className={cn("px-1.5 py-0.5 rounded-[8px] border border-[#1E1B2E]/35 text-[8px] font-black uppercase tracking-widest", colors.badge)}>
                                 {trigger.severity}
                               </span>
                             </div>
@@ -595,7 +597,7 @@ function PatientHomeContent() {
               <div className="p-2 bg-[#7A9E7A]/20 rounded-xl"><Pill className="w-4 h-4 text-[#B5CEB5]" /></div>
               <h4 className="font-extrabold text-sm tracking-tight text-white/90">Medications Schedule</h4>
             </div>
-            
+
             {/* Table Header */}
             <div className="grid grid-cols-[15%_25%_45%_15%] gap-2 px-3 pb-2 border-b border-white/5 mb-2 relative z-10">
               <p className="text-[9px] font-bold text-[#9896B0]/60 uppercase tracking-widest">Time</p>
@@ -603,7 +605,7 @@ function PatientHomeContent() {
               <p className="text-[9px] font-bold text-[#9896B0]/60 uppercase tracking-widest">Activity</p>
               <p className="text-[9px] font-bold text-[#9896B0]/60 uppercase tracking-widest text-right">Action</p>
             </div>
-            
+
             <div className="space-y-1 relative z-10">
               {medEvents.length === 0 ? (
                 <div className="py-8 text-center bg-white/5 rounded-2xl border border-dashed border-white/10">
@@ -618,7 +620,7 @@ function PatientHomeContent() {
                         <span className="text-[10px] font-bold text-[#9896B0]">{med.doseTime}</span>
                         <div className="flex justify-center">
                           <span className={cn(
-                            "px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest", 
+                            "px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest",
                             isTaken ? "bg-[#7A9E7A]/20 text-[#B5CEB5]" : "bg-white/10 text-[#FFC299]/70"
                           )}>
                             {isTaken ? 'Taken' : 'Pend'}
@@ -629,7 +631,7 @@ function PatientHomeContent() {
                           <p className="text-[10px] text-[#9896B0]/60 font-medium truncate">{med.doseTime}</p>
                         </div>
                         <div className="flex justify-end">
-                          <button 
+                          <button
                             onClick={() => handleToggleMedication(med.medicationId, med.doseTime, med.status)}
                             className={cn("w-7 h-7 rounded-full flex items-center justify-center transition-colors", isTaken ? "bg-[#7A9E7A]/20" : "bg-white/10 hover:bg-[#7A9E7A]/20 hover:text-[#B5CEB5]")}
                           >
@@ -668,7 +670,7 @@ function PatientHomeContent() {
                 </button>
               </div>
             </div>
-            
+
             {/* Add Reminder Form */}
             <AnimatePresence>
               {showAddReminder && (
@@ -685,14 +687,14 @@ function PatientHomeContent() {
                 </motion.div>
               )}
             </AnimatePresence>
-            
+
             {/* Table Header */}
             <div className="grid grid-cols-[20%_60%_20%] gap-2 px-3 pb-2 border-b border-border-light mb-2">
               <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Time</p>
               <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Task</p>
               <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest text-right">Done</p>
             </div>
-            
+
             <div className="space-y-1">
               {reminders.length === 0 ? (
                 <div className="py-6 text-center">
@@ -724,17 +726,17 @@ function PatientHomeContent() {
       {/* ─── ROW 4: Upcoming Features (Coming Soon) ─── */}
       <motion.div variants={fadeUp}>
         <div className="mb-5 flex items-center gap-3">
-          <h2 className="text-lg font-black tracking-tight text-slate-900">Upcoming Features</h2>
-          <span className="px-3 py-1 rounded-full bg-gradient-to-r from-violet-500 to-pink-500 text-white text-[9px] font-black uppercase tracking-widest shadow-lg shadow-violet-200">Roadmap</span>
+          <h2 className="text-lg font-black tracking-tight text-slate-900">Edge Features</h2>
+          <span className="px-3 py-1 rounded-[10px] border-2 border-[#1E1B2E] bg-gradient-to-r from-violet-500 to-pink-500 text-white text-[9px] font-black uppercase tracking-widest shadow-[3px_3px_0_#1E1B2E]">Roadmap</span>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           {/* 3D Avatar + Chat */}
-          <Link href="/avatar-assistant" className="relative rounded-[16px] border-2 border-dashed border-violet-200 bg-gradient-to-br from-violet-50/60 to-white/80 backdrop-blur-xl p-6 flex flex-col gap-4 transition-all hover:border-violet-300 hover:shadow-lg group overflow-hidden block">
+          <Link href="/avatar-assistant" className="relative rounded-[14px] border-2 border-[#1E1B2E] bg-gradient-to-br from-violet-50/75 to-white p-6 flex flex-col gap-4 transition-all hover:-translate-x-1 hover:-translate-y-1 hover:shadow-[8px_8px_0_#1E1B2E] shadow-[5px_5px_0_#1E1B2E] group overflow-hidden block">
             <div className="absolute top-0 right-0 w-40 h-40 bg-violet-300/20 rounded-full blur-[60px] pointer-events-none group-hover:bg-violet-300/30 transition-colors" />
             <div className="flex items-center justify-between relative z-10">
               <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-2xl bg-violet-100 border border-violet-200 flex items-center justify-center">
+                <div className="w-11 h-11 rounded-xl bg-violet-100 border-2 border-[#1E1B2E] shadow-[2px_2px_0_#1E1B2E] flex items-center justify-center">
                   <Brain className="w-5 h-5 text-violet-600" />
                 </div>
                 <div>
@@ -742,24 +744,24 @@ function PatientHomeContent() {
                   <p className="text-[10px] font-bold text-violet-400 uppercase tracking-widest">Full-Screen Experience</p>
                 </div>
               </div>
-              <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#EAF2E9] text-[#5A835A] text-[9px] font-black uppercase tracking-widest border border-[#7A9E7A]/25">
+              <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-[10px] bg-[#EAF2E9] text-[#5A835A] text-[9px] font-black uppercase tracking-widest border-2 border-[#1E1B2E] shadow-[2px_2px_0_#1E1B2E]">
                 <CheckCircle2 className="w-3 h-3" /> Live
               </span>
             </div>
             <p className="text-xs text-slate-500 font-medium leading-relaxed relative z-10">A full-screen 3D avatar companion that speaks naturally, recognises faces through the camera, answers questions about memories, and provides contextual support — all in real-time.</p>
             <div className="flex gap-2 flex-wrap relative z-10">
               {['Llama 3 LLM', 'Real-time TTS', 'Qdrant Vector DB', '3D Rendering'].map((t) => (
-                <span key={t} className="px-2.5 py-1 rounded-lg bg-white border border-violet-100 text-[10px] font-bold text-violet-600 shadow-sm">{t}</span>
+                <span key={t} className="px-2.5 py-1 rounded-[8px] bg-white border-2 border-[#1E1B2E] text-[10px] font-bold text-violet-600 shadow-[2px_2px_0_rgba(30,27,46,0.45)]">{t}</span>
               ))}
             </div>
           </Link>
 
           {/* Face Recognition */}
-          <Link href="/avatar-assistant" className="relative rounded-[16px] border-2 border-dashed border-cyan-200 bg-gradient-to-br from-cyan-50/60 to-white/80 backdrop-blur-xl p-6 flex flex-col gap-4 transition-all hover:border-cyan-300 hover:shadow-lg group overflow-hidden block">
+          <Link href="/avatar-assistant" className="relative rounded-[14px] border-2 border-[#1E1B2E] bg-gradient-to-br from-cyan-50/75 to-white p-6 flex flex-col gap-4 transition-all hover:-translate-x-1 hover:-translate-y-1 hover:shadow-[8px_8px_0_#1E1B2E] shadow-[5px_5px_0_#1E1B2E] group overflow-hidden block">
             <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-cyan-300/20 rounded-full blur-[60px] pointer-events-none group-hover:bg-cyan-300/30 transition-colors" />
             <div className="flex items-center justify-between relative z-10">
               <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-2xl bg-cyan-100 border border-cyan-200 flex items-center justify-center group-hover:bg-cyan-500 transition-colors">
+                <div className="w-11 h-11 rounded-xl bg-cyan-100 border-2 border-[#1E1B2E] shadow-[2px_2px_0_#1E1B2E] flex items-center justify-center group-hover:bg-cyan-500 transition-colors">
                   <Camera className="w-5 h-5 text-cyan-600 group-hover:text-white transition-colors" />
                 </div>
                 <div>
@@ -767,24 +769,24 @@ function PatientHomeContent() {
                   <p className="text-[10px] font-bold text-cyan-400 uppercase tracking-widest">&quot;Who is this?&quot;</p>
                 </div>
               </div>
-              <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#EAF2E9] text-[#5A835A] text-[9px] font-black uppercase tracking-widest border border-[#7A9E7A]/25">
+              <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-[10px] bg-[#EAF2E9] text-[#5A835A] text-[9px] font-black uppercase tracking-widest border-2 border-[#1E1B2E] shadow-[2px_2px_0_#1E1B2E]">
                 <CheckCircle2 className="w-3 h-3" /> Live
               </span>
             </div>
             <p className="text-xs text-slate-500 font-medium leading-relaxed relative z-10">Point your camera at a person. The system captures a frame, compares it against the Qdrant face database, and the avatar verbally introduces them — <em>&quot;This is John, your son.&quot;</em></p>
             <div className="flex gap-2 flex-wrap relative z-10">
               {['Face Embedding', 'Qdrant Matching', 'Avatar Voice'].map((t) => (
-                <span key={t} className="px-2.5 py-1 rounded-lg bg-white border border-cyan-100 text-[10px] font-bold text-cyan-600 shadow-sm">{t}</span>
+                <span key={t} className="px-2.5 py-1 rounded-[8px] bg-white border-2 border-[#1E1B2E] text-[10px] font-bold text-cyan-600 shadow-[2px_2px_0_rgba(30,27,46,0.45)]">{t}</span>
               ))}
             </div>
           </Link>
 
           {/* Object Tracking */}
-          <Link href="/avatar-assistant" className="relative rounded-[16px] border-2 border-dashed border-amber-200 bg-gradient-to-br from-amber-50/60 to-white/80 backdrop-blur-xl p-6 flex flex-col gap-4 transition-all hover:border-amber-300 hover:shadow-lg group overflow-hidden block">
+          <Link href="/avatar-assistant" className="relative rounded-[14px] border-2 border-[#1E1B2E] bg-gradient-to-br from-amber-50/80 to-white p-6 flex flex-col gap-4 transition-all hover:-translate-x-1 hover:-translate-y-1 hover:shadow-[8px_8px_0_#1E1B2E] shadow-[5px_5px_0_#1E1B2E] group overflow-hidden block">
             <div className="absolute top-0 left-0 w-40 h-40 bg-amber-300/20 rounded-full blur-[60px] pointer-events-none group-hover:bg-amber-300/30 transition-colors" />
             <div className="flex items-center justify-between relative z-10">
               <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-2xl bg-amber-100 border border-amber-200 flex items-center justify-center group-hover:bg-amber-500 transition-colors">
+                <div className="w-11 h-11 rounded-xl bg-amber-100 border-2 border-[#1E1B2E] shadow-[2px_2px_0_#1E1B2E] flex items-center justify-center group-hover:bg-amber-500 transition-colors">
                   <Search className="w-5 h-5 text-amber-600 group-hover:text-white transition-colors" />
                 </div>
                 <div>
@@ -792,24 +794,24 @@ function PatientHomeContent() {
                   <p className="text-[10px] font-bold text-amber-400 uppercase tracking-widest">&quot;Where are my keys?&quot;</p>
                 </div>
               </div>
-              <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#EAF2E9] text-[#5A835A] text-[9px] font-black uppercase tracking-widest border border-[#7A9E7A]/25">
+              <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-[10px] bg-[#EAF2E9] text-[#5A835A] text-[9px] font-black uppercase tracking-widest border-2 border-[#1E1B2E] shadow-[2px_2px_0_#1E1B2E]">
                 <CheckCircle2 className="w-3 h-3" /> Live
               </span>
             </div>
             <p className="text-xs text-slate-500 font-medium leading-relaxed relative z-10">The camera scans for enrolled objects like medicine boxes, wallets, or keys. When spotted, the avatar announces — <em>&quot;I found your Medicine Box on the table.&quot;</em></p>
             <div className="flex gap-2 flex-wrap relative z-10">
               {['Object Detection', 'YOLO Model', 'Spatial Mapping'].map((t) => (
-                <span key={t} className="px-2.5 py-1 rounded-lg bg-white border border-amber-100 text-[10px] font-bold text-amber-700 shadow-sm">{t}</span>
+                <span key={t} className="px-2.5 py-1 rounded-[8px] bg-white border-2 border-[#1E1B2E] text-[10px] font-bold text-amber-700 shadow-[2px_2px_0_rgba(30,27,46,0.45)]">{t}</span>
               ))}
             </div>
           </Link>
 
           {/* Voice Playback */}
-          <Link href="/avatar-assistant" className="relative rounded-[16px] border-2 border-dashed border-pink-200 bg-gradient-to-br from-pink-50/60 to-white/80 backdrop-blur-xl p-6 flex flex-col gap-4 transition-all hover:border-pink-300 hover:shadow-lg group overflow-hidden block">
+          <Link href="/avatar-assistant" className="relative rounded-[14px] border-2 border-[#1E1B2E] bg-gradient-to-br from-pink-50/75 to-white p-6 flex flex-col gap-4 transition-all hover:-translate-x-1 hover:-translate-y-1 hover:shadow-[8px_8px_0_#1E1B2E] shadow-[5px_5px_0_#1E1B2E] group overflow-hidden block">
             <div className="absolute -top-10 -right-10 w-40 h-40 bg-pink-300/20 rounded-full blur-[60px] pointer-events-none group-hover:bg-pink-300/30 transition-colors" />
             <div className="flex items-center justify-between relative z-10">
               <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-2xl bg-pink-100 border border-pink-200 flex items-center justify-center group-hover:bg-pink-500 transition-colors">
+                <div className="w-11 h-11 rounded-xl bg-pink-100 border-2 border-[#1E1B2E] shadow-[2px_2px_0_#1E1B2E] flex items-center justify-center group-hover:bg-pink-500 transition-colors">
                   <Volume2 className="w-5 h-5 text-pink-600 group-hover:text-white transition-colors" />
                 </div>
                 <div>
@@ -817,14 +819,14 @@ function PatientHomeContent() {
                   <p className="text-[10px] font-bold text-pink-400 uppercase tracking-widest">&quot;How does John talk?&quot;</p>
                 </div>
               </div>
-              <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#EAF2E9] text-[#5A835A] text-[9px] font-black uppercase tracking-widest border border-[#7A9E7A]/25">
+              <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-[10px] bg-[#EAF2E9] text-[#5A835A] text-[9px] font-black uppercase tracking-widest border-2 border-[#1E1B2E] shadow-[2px_2px_0_#1E1B2E]">
                 <CheckCircle2 className="w-3 h-3" /> Live
               </span>
             </div>
             <p className="text-xs text-slate-500 font-medium leading-relaxed relative z-10">Store voice samples of relatives. When the patient asks to hear a familiar voice, the AI retrieves and synthesizes the saved audio — bringing comfort through recognition.</p>
             <div className="flex gap-2 flex-wrap relative z-10">
               {['Voice Cloning', 'Audio Retrieval', 'TTS Synthesis'].map((t) => (
-                <span key={t} className="px-2.5 py-1 rounded-lg bg-white border border-pink-100 text-[10px] font-bold text-pink-600 shadow-sm">{t}</span>
+                <span key={t} className="px-2.5 py-1 rounded-[8px] bg-white border-2 border-[#1E1B2E] text-[10px] font-bold text-pink-600 shadow-[2px_2px_0_rgba(30,27,46,0.45)]">{t}</span>
               ))}
             </div>
           </Link>

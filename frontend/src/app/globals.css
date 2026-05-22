@@ -204,4 +204,93 @@ body {
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
     background: #FF8C42;
   }
+
+  /* Semi neo-brutalist treatment scoped to in-app pages only */
+  .app-shell {
+    font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+  }
+
+  .app-shell .card {
+    background: rgba(255, 255, 255, 0.94);
+    border: 2px solid #1E1B2E;
+    border-radius: 14px;
+    box-shadow: 6px 6px 0 #1E1B2E;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  .app-shell .card:hover {
+    transform: translate(-2px, -2px);
+    box-shadow: 9px 9px 0 #1E1B2E;
+  }
+
+  .app-shell .btn-gradient {
+    border-radius: 12px;
+    border: 2px solid #1E1B2E;
+    box-shadow: 4px 4px 0 #1E1B2E;
+    background: linear-gradient(135deg, #FF8C42, #F97316);
+  }
+
+  .app-shell .btn-gradient:hover {
+    transform: translate(-1px, -1px);
+    box-shadow: 6px 6px 0 #1E1B2E;
+  }
+
+  .app-shell .btn-gradient:active {
+    transform: translate(1px, 1px);
+    box-shadow: 2px 2px 0 #1E1B2E;
+  }
+
+  .app-shell .btn-outline {
+    border-radius: 12px;
+    border: 2px solid #1E1B2E;
+    box-shadow: 4px 4px 0 #1E1B2E;
+    background: #fff;
+  }
+
+  .app-shell .btn-outline:hover {
+    transform: translate(-1px, -1px);
+    box-shadow: 6px 6px 0 #1E1B2E;
+    border-color: #1E1B2E;
+  }
+
+  .app-shell .btn-outline:active {
+    transform: translate(1px, 1px);
+    box-shadow: 2px 2px 0 #1E1B2E;
+  }
+
+  .app-shell .input-base,
+  .app-shell input,
+  .app-shell textarea,
+  .app-shell select {
+    border: 2px solid #1E1B2E;
+    border-radius: 12px;
+    box-shadow: 3px 3px 0 rgba(30, 27, 46, 0.65);
+    background: #fffefb;
+  }
+
+  .app-shell .input-base:focus,
+  .app-shell input:focus,
+  .app-shell textarea:focus,
+  .app-shell select:focus {
+    box-shadow: 0 0 0 3px rgba(255, 140, 66, 0.22), 3px 3px 0 rgba(30, 27, 46, 0.65);
+  }
+
+  .app-shell .pill-tabs {
+    border: 2px solid #1E1B2E;
+    border-radius: 14px;
+    box-shadow: 4px 4px 0 #1E1B2E;
+    background: #FFF8ED;
+  }
+
+  .app-shell .pill-tab.active {
+    border: 2px solid #1E1B2E;
+    box-shadow: 3px 3px 0 #1E1B2E;
+  }
+
+  .app-shell .bg-mesh-1,
+  .app-shell .bg-mesh-2 {
+    opacity: 0.32;
+    filter: saturate(1.1) contrast(1.02);
+  }
 }

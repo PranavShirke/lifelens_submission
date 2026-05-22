@@ -531,10 +531,10 @@ function DashboardContent() {
         {/* RIGHT COLUMN: Tooling */}
         <motion.div variants={itemVariants} className="col-span-1 lg:col-span-3 flex flex-col gap-6">
           {/* Current Medications Widget */}
-          <div className="card shadow-lg h-[420px] lg:h-auto lg:flex-1">
+          <div className="card border-2 border-[#1E1B2E] shadow-[6px_6px_0_#1E1B2E] h-[420px] lg:h-auto lg:flex-1">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-bold text-slate-900 flex items-center gap-2 text-lg"><Check className="w-5 h-5 text-emerald-500" /> Active Meds</h3>
-              <span className="text-[10px] font-bold text-slate-500 bg-slate-100 shadow-inner px-2.5 py-1 rounded-lg">{medications.length} items</span>
+              <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-lg border-2 border-[#1E1B2E] shadow-[2px_2px_0_#1E1B2E]">{medications.length} items</span>
             </div>
             <div className="space-y-3 flex-1 overflow-y-auto pr-1 custom-scrollbar">
                {medications.slice(0, 5).map((med, i) => (
@@ -543,7 +543,7 @@ function DashboardContent() {
                    animate={{ opacity: 1, x: 0 }}
                    transition={{ delay: 0.3 + i * 0.1 }}
                    key={med.id} 
-                   className="p-3.5 rounded-2xl bg-white border border-slate-100 shadow-sm flex items-center justify-between group hover:border-slate-300 transition-colors cursor-default"
+                   className="p-3.5 rounded-2xl bg-white border-2 border-[#1E1B2E] shadow-[3px_3px_0_rgba(30,27,46,0.4)] flex items-center justify-between group transition-colors cursor-default"
                  >
                     <div>
                       <p className="font-bold text-slate-800 text-sm group-hover:text-emerald-700 transition-colors">{med.name}</p>
@@ -560,7 +560,7 @@ function DashboardContent() {
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={() => window.location.href = '/caretaker/medications'}
-                  className="w-full py-3 text-[11px] font-bold uppercase tracking-wider text-slate-500 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 rounded-xl transition-all border border-slate-200 border-dashed hover:border-solid mt-2 flex items-center justify-center gap-2"
+                  className="w-full py-3 text-[11px] font-bold uppercase tracking-wider text-slate-600 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 rounded-xl transition-all border-2 border-[#1E1B2E] mt-2 flex items-center justify-center gap-2 shadow-[3px_3px_0_#1E1B2E]"
                 >
                   View prescriptions
                 </motion.button>
@@ -687,16 +687,16 @@ function DashboardContent() {
       <div className="mt-8">
         <div className="mb-5 flex items-center gap-3">
           <h2 className="text-lg font-black tracking-tight text-slate-900">Memory Bank Enrollment</h2>
-          <span className="px-3 py-1 rounded-full bg-gradient-to-r from-violet-500 to-pink-500 text-white text-[9px] font-black uppercase tracking-widest shadow-lg shadow-violet-200">Roadmap</span>
+          <span className="px-3 py-1 rounded-[10px] border-2 border-[#1E1B2E] bg-gradient-to-r from-violet-500 to-pink-500 text-white text-[9px] font-black uppercase tracking-widest shadow-[3px_3px_0_#1E1B2E]">Roadmap</span>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {/* Person Enrollment */}
-          <Link href="/remember/person" className="relative rounded-[16px] border-2 border-dashed border-teal-200 bg-gradient-to-br from-teal-50/60 to-white/80 backdrop-blur-xl p-6 flex flex-col gap-4 transition-all hover:border-teal-300 hover:shadow-lg group overflow-hidden block cursor-pointer">
+          <Link href="/remember/person" className="relative rounded-[14px] border-2 border-[#1E1B2E] bg-gradient-to-br from-teal-50/75 to-white p-6 flex flex-col gap-4 transition-all hover:-translate-x-1 hover:-translate-y-1 hover:shadow-[8px_8px_0_#1E1B2E] shadow-[5px_5px_0_#1E1B2E] group overflow-hidden block cursor-pointer">
             <div className="absolute -top-10 -right-10 w-40 h-40 bg-teal-300/20 rounded-full blur-[60px] pointer-events-none group-hover:bg-teal-300/30 transition-colors" />
             <div className="flex items-center justify-between relative z-10">
               <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-2xl bg-teal-100 border border-teal-200 flex items-center justify-center group-hover:bg-teal-500 group-hover:text-white transition-colors">
+                <div className="w-11 h-11 rounded-xl bg-teal-100 border-2 border-[#1E1B2E] shadow-[2px_2px_0_#1E1B2E] flex items-center justify-center group-hover:bg-teal-500 group-hover:text-white transition-colors">
                   <Users className="w-5 h-5 text-teal-600 group-hover:text-white transition-colors" />
                 </div>
                 <div>
@@ -704,24 +704,24 @@ function DashboardContent() {
                   <p className="text-[10px] font-bold text-teal-400 uppercase tracking-widest">/remember/person</p>
                 </div>
               </div>
-              <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#EAF2E9] text-[#5A835A] text-[9px] font-black uppercase tracking-widest border border-[#7A9E7A]/25">
+              <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-[10px] bg-[#EAF2E9] text-[#5A835A] text-[9px] font-black uppercase tracking-widest border-2 border-[#1E1B2E] shadow-[2px_2px_0_#1E1B2E]">
                 <CheckCircle2 className="w-3 h-3" /> Live
               </span>
             </div>
             <p className="text-xs text-slate-500 font-medium leading-relaxed relative z-10">Upload photos, names, relationships, context notes, and optional audio samples of loved ones and caregivers. The backend encodes face embeddings and stores metadata in Qdrant for real-time recognition.</p>
             <div className="flex gap-2 flex-wrap relative z-10">
               {['Face Encoding', 'Qdrant Storage', 'Audio Samples', 'Relationship Tags'].map((t) => (
-                <span key={t} className="px-2.5 py-1 rounded-lg bg-white border border-teal-100 text-[10px] font-bold text-teal-600 shadow-sm">{t}</span>
+                <span key={t} className="px-2.5 py-1 rounded-[8px] bg-white border-2 border-[#1E1B2E] text-[10px] font-bold text-teal-600 shadow-[2px_2px_0_rgba(30,27,46,0.45)]">{t}</span>
               ))}
             </div>
           </Link>
 
           {/* Object Enrollment */}
-          <div className="relative rounded-[16px] border-2 border-dashed border-amber-200 bg-gradient-to-br from-amber-50/60 to-white/80 backdrop-blur-xl p-6 flex flex-col gap-4 transition-all hover:border-amber-300 hover:shadow-lg group overflow-hidden">
+          <div className="relative rounded-[14px] border-2 border-[#1E1B2E] bg-gradient-to-br from-amber-50/75 to-white p-6 flex flex-col gap-4 transition-all hover:-translate-x-1 hover:-translate-y-1 hover:shadow-[8px_8px_0_#1E1B2E] shadow-[5px_5px_0_#1E1B2E] group overflow-hidden">
             <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-amber-300/20 rounded-full blur-[60px] pointer-events-none" />
             <div className="flex items-center justify-between relative z-10">
               <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-2xl bg-amber-100 border border-amber-200 flex items-center justify-center">
+                <div className="w-11 h-11 rounded-xl bg-amber-100 border-2 border-[#1E1B2E] shadow-[2px_2px_0_#1E1B2E] flex items-center justify-center">
                   <Package className="w-5 h-5 text-amber-600" />
                 </div>
                 <div>
@@ -729,24 +729,24 @@ function DashboardContent() {
                   <p className="text-[10px] font-bold text-amber-400 uppercase tracking-widest">/remember/object</p>
                 </div>
               </div>
-              <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#EAF2E9] text-[#5A835A] text-[9px] font-black uppercase tracking-widest border border-[#7A9E7A]/25">
+              <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-[10px] bg-[#EAF2E9] text-[#5A835A] text-[9px] font-black uppercase tracking-widest border-2 border-[#1E1B2E] shadow-[2px_2px_0_#1E1B2E]">
                 <CheckCircle2 className="w-3 h-3" /> Live
               </span>
             </div>
             <p className="text-xs text-slate-500 font-medium leading-relaxed relative z-10">Upload photos of significant objects like wallets, medicine boxes, and keys so the system learns what they look like — helping the patient locate misplaced items via camera scanning.</p>
             <div className="flex gap-2 flex-wrap relative z-10">
               {['Image Embedding', 'Object Detection', 'YOLO Training', 'Spatial Labels'].map((t) => (
-                <span key={t} className="px-2.5 py-1 rounded-lg bg-white border border-amber-100 text-[10px] font-bold text-amber-700 shadow-sm">{t}</span>
+                <span key={t} className="px-2.5 py-1 rounded-[8px] bg-white border-2 border-[#1E1B2E] text-[10px] font-bold text-amber-700 shadow-[2px_2px_0_rgba(30,27,46,0.45)]">{t}</span>
               ))}
             </div>
           </div>
 
           {/* Patient Self-Enrollment */}
-          <div className="relative rounded-[16px] border-2 border-dashed border-violet-200 bg-gradient-to-br from-violet-50/60 to-white/80 backdrop-blur-xl p-6 flex flex-col gap-4 transition-all hover:border-violet-300 hover:shadow-lg group overflow-hidden">
+          <div className="relative rounded-[14px] border-2 border-[#1E1B2E] bg-gradient-to-br from-violet-50/75 to-white p-6 flex flex-col gap-4 transition-all hover:-translate-x-1 hover:-translate-y-1 hover:shadow-[8px_8px_0_#1E1B2E] shadow-[5px_5px_0_#1E1B2E] group overflow-hidden">
             <div className="absolute top-0 right-0 w-40 h-40 bg-violet-300/20 rounded-full blur-[60px] pointer-events-none" />
             <div className="flex items-center justify-between relative z-10">
               <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-2xl bg-violet-100 border border-violet-200 flex items-center justify-center">
+                <div className="w-11 h-11 rounded-xl bg-violet-100 border-2 border-[#1E1B2E] shadow-[2px_2px_0_#1E1B2E] flex items-center justify-center">
                   <Eye className="w-5 h-5 text-violet-600" />
                 </div>
                 <div>
@@ -754,14 +754,14 @@ function DashboardContent() {
                   <p className="text-[10px] font-bold text-violet-400 uppercase tracking-widest">/remember/patient</p>
                 </div>
               </div>
-              <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#EAF2E9] text-[#5A835A] text-[9px] font-black uppercase tracking-widest border border-[#7A9E7A]/25">
+              <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-[10px] bg-[#EAF2E9] text-[#5A835A] text-[9px] font-black uppercase tracking-widest border-2 border-[#1E1B2E] shadow-[2px_2px_0_#1E1B2E]">
                 <CheckCircle2 className="w-3 h-3" /> Live
               </span>
             </div>
             <p className="text-xs text-slate-500 font-medium leading-relaxed relative z-10">Register patient face and voice data securely to enable the 3D avatar to address them personally and provide a deeply personalized caregiving experience.</p>
             <div className="flex gap-2 flex-wrap relative z-10">
               {['Face Registration', 'Voice Profiling', 'Secure Storage'].map((t) => (
-                <span key={t} className="px-2.5 py-1 rounded-lg bg-white border border-violet-100 text-[10px] font-bold text-violet-600 shadow-sm">{t}</span>
+                <span key={t} className="px-2.5 py-1 rounded-[8px] bg-white border-2 border-[#1E1B2E] text-[10px] font-bold text-violet-600 shadow-[2px_2px_0_rgba(30,27,46,0.45)]">{t}</span>
               ))}
             </div>
           </div>

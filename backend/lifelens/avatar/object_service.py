@@ -1,3 +1,13 @@
+"""
+LifeLens Object Service — Strict YOLO Edition
+==============================================
+Object detection using Ultralytics YOLO with strict confidence gating.
+
+Key change: ``conf=0.65`` is passed directly in the inference call
+so YOLO's internal NMS already filters low-confidence detections —
+no flickering, no false positives (like "BOTTLE" on a curtain).
+"""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -13,22 +23,11 @@ try:
 except Exception:
     YOLO = None
 
-try:
-    from tensorflow.keras.applications.mobilenet_v2 import (  # type: ignore
-        MobileNetV2,
-        preprocess_input,
-    )
-    from tensorflow.keras.models import Model  # type: ignore
-    from tensorflow.keras.preprocessing import image as keras_image  # type: ignore
-except Exception:
-    MobileNetV2 = None
-    preprocess_input = None
-    Model = None
-    keras_image = None
-
 
 OBJECT_EMBED_SIZE = 1280
-_embedding_model = None
+
+# Strict confidence threshold — only show objects YOLO is very sure about.
+YOLO_CONFIDENCE_THRESHOLD = 0.65
 
 
 def _resolve_yolo_model_path(explicit_model_path: str | None = None) -> str:
@@ -45,6 +44,7 @@ def _resolve_yolo_model_path(explicit_model_path: str | None = None) -> str:
         [
             Path.cwd() / "yolov8n.pt",
             project_root / "yolov8n.pt",
+            Path(__file__).resolve().parent / "yolov8n.pt",
             project_root / "portable_feature_pack" / "backend" / "yolov8n.pt",
         ]
     )
@@ -70,23 +70,12 @@ def _fallback_embedding(image_path: str) -> List[float]:
     return vec.astype(np.float32).tolist()
 
 
-def get_embedding_model():
-    global _embedding_model
-    if _embedding_model is None:
-        if MobileNetV2 is None or Model is None:
-            return None
-        base = MobileNetV2(weights="imagenet", include_top=False, pooling="avg")
-        _embedding_model = Model(inputs=base.input, outputs=base.output)
-    return _embedding_model
-
-
 class ObjectDetector:
     def __init__(self, model_path: str | None = None):
         self.detector = None
         self.model_path = _resolve_yolo_model_path(model_path)
-        self.native_embedding_enabled = bool(
-            MobileNetV2 is not None and Model is not None and keras_image is not None and preprocess_input is not None
-        )
+        self.native_embedding_enabled = False  # Removed MobileNetV2 dependency
+
         if YOLO is not None:
             try:
                 self.detector = YOLO(self.model_path)
@@ -96,11 +85,24 @@ class ObjectDetector:
         self.detector_enabled = self.detector is not None
 
     def detect_objects(self, image_path: str) -> List[Dict[str, Any]]:
-        """Returns YOLO detections if available, otherwise an empty list."""
+        """
+        Returns YOLO detections with STRICT confidence gating.
+
+        The ``conf=0.65`` threshold is applied at the inference level,
+        meaning YOLO discards uncertain detections before NMS — this
+        eliminates flickering bounding boxes and false positives
+        (e.g., detecting "bottle" on a curtain).
+        """
         if self.detector is None:
             return []
 
-        results = self.detector(image_path)
+        # Strict confidence gating — the critical fix
+        results = self.detector(
+            image_path,
+            conf=YOLO_CONFIDENCE_THRESHOLD,
+            verbose=False,
+        )
+
         detections: List[Dict[str, Any]] = []
         for result in results:
             for box in result.boxes:
@@ -114,17 +116,14 @@ class ObjectDetector:
         return detections
 
     def generate_embedding(self, image_path: str) -> List[float]:
-        """Generates 1280-d embedding for the full image, with a fallback on unsupported runtimes."""
-        model = get_embedding_model()
-        if model is None or keras_image is None or preprocess_input is None:
-            return _fallback_embedding(image_path)
+        """
+        Generates 1280-d embedding for the full image.
 
-        img = keras_image.load_img(image_path, target_size=(224, 224))
-        x = keras_image.img_to_array(img)
-        x = np.expand_dims(x, axis=0)
-        x = preprocess_input(x)
-        embedding = model.predict(x, verbose=0)
-        return embedding[0].tolist()
+        Uses the fallback grayscale method since we've removed the
+        heavy MobileNetV2 dependency. This is only used for Qdrant
+        enrollment of custom objects — recognition uses YOLO directly.
+        """
+        return _fallback_embedding(image_path)
 
 
 detector = ObjectDetector()

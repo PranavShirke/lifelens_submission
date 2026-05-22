@@ -49,6 +49,22 @@ export default function AdherenceAnalyticsPanel({ patientId }: AdherenceAnalytic
     else break;
   }
 
+  const chartData = data.map((d) => {
+    const safeDate = d.date || d.day || '';
+    const dayLabel = safeDate
+      ? new Date(safeDate).toLocaleDateString('en-IN', { weekday: 'short' })
+      : 'N/A';
+
+    return {
+      ...d,
+      day: dayLabel,
+      taken: Number(d.taken || 0),
+      missed: Number(d.missed || 0),
+      skipped: Number(d.skipped || 0),
+      adherence: Number(d.adherence || 0),
+    };
+  });
+
   const kpis = [
     { label: 'Avg Adherence', value: `${avgAdherence}%`, icon: Target, color: 'text-indigo-500', bg: 'bg-indigo-50' },
     { label: 'Current Streak', value: `${streak} days`, icon: Flame, color: 'text-orange-500', bg: 'bg-orange-50' },
@@ -83,8 +99,13 @@ export default function AdherenceAnalyticsPanel({ patientId }: AdherenceAnalytic
 
       {/* Weekly chart */}
       <div className="h-48 w-full">
+        {chartData.length === 0 ? (
+          <div className="h-full flex items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50/40">
+            <p className="text-xs font-semibold text-slate-400">No adherence events for the selected window</p>
+          </div>
+        ) : (
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={data} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+          <BarChart data={chartData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
             <XAxis 
               dataKey="day" 
@@ -112,13 +133,14 @@ export default function AdherenceAnalyticsPanel({ patientId }: AdherenceAnalytic
               labelStyle={{ fontWeight: 800, marginBottom: '4px', color: '#1E293B' }}
             />
             <Bar dataKey="taken" name="Taken" radius={[4, 4, 0, 0]} barSize={24}>
-              {data.map((entry, index) => (
+              {chartData.map((entry, index) => (
                 <Cell key={`cell-${index}`} fill={entry.adherence >= 100 ? '#10B981' : '#6366F1'} />
               ))}
             </Bar>
             <Bar dataKey="missed" name="Missed" fill="#FDA4AF" radius={[4, 4, 0, 0]} barSize={24} />
           </BarChart>
         </ResponsiveContainer>
+        )}
       </div>
     </div>
   );

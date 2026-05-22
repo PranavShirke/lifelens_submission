@@ -295,30 +295,76 @@ def get_all_patient_medications(client: QdrantClient, patient_id: str,
         return []
 
 
+def delete_medication(client: QdrantClient, medication_id: str, patient_id: str) -> bool:
+    """
+    Soft-deletes a medication by setting active=False.
+    """
+    try:
+        results = client.scroll(
+            collection_name="medications",
+            scroll_filter=models.Filter(
+                must=[
+                    models.FieldCondition(key="patient_id", match=models.MatchValue(value=patient_id)),
+                    models.FieldCondition(key="medication_id", match=models.MatchValue(value=medication_id))
+                ]
+            ),
+            limit=1
+        )[0]
+        
+        if not results:
+            return False
+            
+        point = results[0]
+        payload = point.payload
+        payload["active"] = False
+        
+        client.upsert(
+            collection_name="medications",
+            points=[
+                models.PointStruct(
+                    id=point.id,
+                    vector=point.vector or [0.0]*3072,
+                    payload=payload
+                )
+            ]
+        )
+        return True
+    except Exception as e:
+        logger.error(f"Error deleting medication: {e}")
+        return False
+
+
 def calculate_adherence_rate(client: QdrantClient, patient_id: str, 
                             medication_id: Optional[str] = None,
                             days: int = 7) -> float:
     """
-    Calculates adherence rate for a patient or specific medication.
+    Calculates today's adherence rate for a patient.
+    Uses today's scheduled doses as the denominator, taken doses as numerator.
     
     Args:
         client: Qdrant client instance
         patient_id: Patient identifier
         medication_id: Optional medication filter
-        days: Number of days to calculate over
+        days: Kept for API compat but only today is used for rate
         
     Returns:
         Adherence rate as a decimal (0.0 to 1.0)
     """
-    events = get_medication_history(client, patient_id, medication_id, days)
-    
-    if not events:
+    try:
+        from lifelens.agents.medication_scheduler import get_todays_medications
+        today_schedule = get_todays_medications(client, patient_id)
+        if medication_id:
+            today_schedule = [d for d in today_schedule if d.get("medication_id") == medication_id]
+        
+        if not today_schedule:
+            return 0.0
+        
+        taken = len([d for d in today_schedule if d.get("status") == "taken"])
+        total = len(today_schedule)
+        
+        return taken / total if total > 0 else 0.0
+    except Exception:
         return 0.0
-    
-    taken = len([e for e in events if e.get("status") == "taken"])
-    total = len(events)
-    
-    return taken / total if total > 0 else 0.0
 
 
 def get_medication_insights_for_patient(client: QdrantClient, 

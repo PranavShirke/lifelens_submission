@@ -1,0 +1,17 @@
+# LifeLens Perception Layer Dependencies
+# =======================================
+
+# Computer Vision backbone
+opencv-python>=4.8.0
+
+# Face Recognition — abstracts all embedding math & similarity thresholds
+deepface>=0.0.93
+
+# Object Detection — YOLOv8 inference engine
+ultralytics>=8.2.0
+
+# Required by deepface for face detection backend
+tf-keras>=2.16.0
+
+# Numerical computing (dependency of the above, pinned for stability)
+numpy>=1.24.0

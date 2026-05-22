@@ -177,38 +177,35 @@ async def recognize_person(file: UploadFile = File(...), _: dict = Depends(verif
         except Exception as exc:
             raise _dependency_error(exc)
 
-        # Generate embeddings for ALL detected faces in the frame
-        all_embeddings = face_service.generate_all_embeddings(str(temp_path))
-        
-        # Fallback to single embedding if multi-face method is not available
-        if not all_embeddings:
-            single = face_service.generate_embedding(str(temp_path))
-            if single:
-                all_embeddings = [single]
+        # --- DeepFace recognition (zero manual math) -----------------------
+        # DeepFace.find() handles face detection, embedding, distance
+        # calculation, and threshold enforcement internally.
+        # Returns None if: no face detected OR no match found.
+        result = face_service.recognize_from_image(str(temp_path))
 
-        if not all_embeddings:
-            return {"status": "no_face_detected", "person": None}
+        if result is None:
+            # Check if a face was detected at all (for better UX messaging)
+            has_face = face_service.has_face(str(temp_path))
+            if not has_face:
+                return {"status": "no_face_detected", "person": None}
+            else:
+                return {"status": "unknown", "person": None}
 
-        # Search for the best match across ALL detected faces
-        best_match = None
-        best_score = 0.0
-        
-        for emb in all_embeddings:
-            matches = memory_service.search_face(emb)
-            if matches and matches[0].score > best_score:
-                best_match = matches[0]
-                best_score = matches[0].score
+        # Match found — look up full metadata from Qdrant for rich response
+        matched_name = result["name"]
+        confidence = result.get("confidence", 0.0)
 
-        # Threshold reverted to 0.88 to ensure the face is recognized as originally requested, accepting background false-positives under the fallback framework.
-        if best_match and best_score > 0.88:
-            payload = best_match.payload or {}
+        # Search Qdrant by text to get the full person payload (notes, audio, etc.)
+        person_records = memory_service.search_by_text(matched_name)
+        if person_records:
+            payload = person_records[0].payload or {}
             _conversation_service().update_context(payload)
             return {
                 "status": "identified",
                 "person": {
-                    "name": payload.get("name", "Unknown"),
+                    "name": payload.get("name", matched_name),
                     "relation": payload.get("relation", "Unknown"),
-                    "confidence": best_score,
+                    "confidence": confidence,
                     "id": payload.get("person_id"),
                     "notes": payload.get("notes", ""),
                     "relation_tags": payload.get("relation_tags", []),
@@ -217,7 +214,16 @@ async def recognize_person(file: UploadFile = File(...), _: dict = Depends(verif
                 },
             }
 
-        return {"status": "unknown", "person": None}
+        # DeepFace matched but no Qdrant record (edge case)
+        return {
+            "status": "identified",
+            "person": {
+                "name": matched_name,
+                "relation": "Unknown",
+                "confidence": confidence,
+            },
+        }
+
     except HTTPException:
         raise
     except Exception as exc:
@@ -283,6 +289,9 @@ async def remember_person(
             embedding=embedding,
             metadata=metadata,
         )
+
+        # Dual-write: also save to known_faces/ for DeepFace recognition
+        face_service.enroll_face_image(name, str(image_path))
 
         try:
             _semantic_memory_service().learn_person(metadata)
@@ -354,6 +363,9 @@ async def remember_patient(
             embedding=embedding,
             metadata=metadata,
         )
+
+        # Dual-write: also save to known_faces/ for DeepFace recognition
+        face_service.enroll_face_image(name, str(image_path))
 
         try:
             _semantic_memory_service().learn_person(metadata)
@@ -431,61 +443,45 @@ async def find_object(file: UploadFile = File(...), _: dict = Depends(verify_tok
         except Exception as exc:
             raise _dependency_error(exc)
 
-        embedding = object_service.generate_embedding(str(temp_path))
-        matches = memory_service.search_object(embedding)
-
-        match_threshold = 0.85
-        if not getattr(object_service, "native_embedding_enabled", True):
-            match_threshold = 0.88
-
-        if matches and matches[0].score > match_threshold:
-            best = matches[0]
-            payload = best.payload or {}
-            _conversation_service().update_context(payload)
-            return {
-                "status": "identified",
-                "object": {
-                    "name": payload.get("name", "Unknown"),
-                    "notes": payload.get("notes", ""),
-                    "confidence": best.score,
-                    "location": payload.get("location", "Unknown"),
-                    "image": payload.get("image_base64"),
-                },
-            }
-
+        # --- YOLO detection with strict confidence (conf=0.65) ---
+        # This is the PRIMARY detection method.  The strict threshold
+        # eliminates false positives like "bottle" on curtains.
         detections = object_service.detect_objects(str(temp_path))
+
         if detections:
             best_detection = max(detections, key=lambda item: item["confidence"])
             label = best_detection["object"]
-            timestamp = datetime.now().strftime("%I:%M %p")
-            location = f"last seen around {timestamp}"
-            image_b64 = _encode_image_base64(str(temp_path))
+            confidence = best_detection["confidence"]
 
-            metadata = {
-                "name": label,
-                "type": "object",
-                "notes": "Auto-enrolled from camera observation.",
-                "location": location,
-                "image_base64": image_b64,
-                "timestamp": datetime.utcnow().isoformat(),
-            }
+            # Check if this YOLO label matches any enrolled custom object
+            enrolled_records = memory_service.search_by_text(label)
+            enrolled_obj = None
+            for record in (enrolled_records or []):
+                payload = record.payload or {}
+                if payload.get("type") == "object":
+                    enrolled_obj = payload
+                    break
 
-            memory_service.store_object_memory(
-                object_id=str(uuid.uuid4()),
-                embedding=embedding,
-                metadata=metadata,
-            )
+            if enrolled_obj:
+                _conversation_service().update_context(enrolled_obj)
+                return {
+                    "status": "identified",
+                    "object": {
+                        "name": enrolled_obj.get("name", label),
+                        "notes": enrolled_obj.get("notes", ""),
+                        "confidence": confidence,
+                        "location": enrolled_obj.get("location", "Unknown"),
+                        "image": enrolled_obj.get("image_base64"),
+                    },
+                }
 
-            _conversation_service().update_context(metadata)
+            # YOLO detected something but it's not enrolled
             return {
-                "status": "identified",
-                "object": {
-                    "name": label,
-                    "notes": "I just learned this object from your camera input.",
-                    "confidence": best_detection["confidence"],
-                    "location": location,
-                    "image": image_b64,
-                },
+                "status": "unknown",
+                "object": None,
+                "suggestion": f"I detected a '{label}' but it hasn't been enrolled yet. Use 'Enroll Object' to remember it.",
+                "detected_label": label,
+                "detected_confidence": confidence,
             }
 
         return {"status": "unknown", "object": None}
@@ -544,10 +540,64 @@ async def chat_query(payload: AvatarChatRequest = Body(...), _: dict = Depends(v
         else:
             matches = semantic_memory.search_knowledge(text)
 
+    # ── NEW: If no avatar/semantic matches, search main patient memories + meds ──
     if not matches:
+        extra_context_parts = []
+
+        # Search main lifelens_memory collection for recent memories
+        try:
+            from qdrant_client import QdrantClient
+            from lifelens.config import QDRANT_URL, QDRANT_API_KEY
+            main_client = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
+
+            from sentence_transformers import SentenceTransformer
+            encoder = SentenceTransformer("all-MiniLM-L6-v2")
+            query_vec = encoder.encode(text).tolist()
+
+            mem_results = main_client.query_points(
+                collection_name="lifelens_memory",
+                query=query_vec,
+                limit=5,
+            )
+            for pt in mem_results.points:
+                p = pt.payload or {}
+                content = p.get("content") or p.get("text") or p.get("notes") or ""
+                if content:
+                    extra_context_parts.append(content[:300])
+        except Exception:
+            pass
+
+        # Fetch today's medication schedule
+        try:
+            from lifelens.agents.medication_scheduler import get_todays_medications
+            from lifelens.config import QDRANT_URL as Q_URL, QDRANT_API_KEY as Q_KEY
+            med_client = QdrantClient(url=Q_URL, api_key=Q_KEY)
+            meds = get_todays_medications(med_client, "patient_1")
+            if meds:
+                med_lines = []
+                for m in meds:
+                    med_lines.append(f"{m['medication_name']} {m['dosage']} at {m['scheduled_time']} — {m['status']}")
+                extra_context_parts.append("Today's Medications:\n" + "\n".join(med_lines))
+        except Exception:
+            pass
+
+        # Use LLM with gathered context (even if empty — for general conversation)
+        combined_context = {
+            "name": "LifeLens Patient",
+            "notes": "\n---\n".join(extra_context_parts) if extra_context_parts else "No specific data found for this query.",
+            "has_audio": False,
+            "has_image": False,
+        }
+        final_text = llm_service.generate_response(user_text=text, context=combined_context)
         return {
-            "status": "unknown",
-            "text": "I couldn't find anything relevant in memory right now.",
+            "status": "found",
+            "text": final_text,
+            "person": None,
+            "audio_base64": None,
+            "voice_source": None,
+            "voice_clone_enabled": False,
+            "image_base64": None,
+            "gallery": [],
         }
 
     best_match = matches[0]

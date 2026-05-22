@@ -14,6 +14,7 @@ import time
 import logging
 import uuid
 from datetime import datetime, timedelta
+import asyncio
 
 # Add project root to path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
@@ -33,6 +34,7 @@ from lifelens.ingestion.upsert_memory import upsert_memory
 from lifelens.avatar.collections import ensure_avatar_collections
 from lifelens.api.avatar_routes import router as avatar_router, v1_router as avatar_v1_router
 from qdrant_client.http import models
+from lifelens.utils.scheduler import nagging_loop
 
 # Initialize App
 app = FastAPI(title="LifeLens API", description="Backend for React Frontend", version="2.0.0")
@@ -58,7 +60,7 @@ app.include_router(avatar_v1_router)
 # ==================== STARTUP ====================
 
 @app.on_event("startup")
-def on_startup():
+async def on_startup():
     """Initialize DB collections and default users on startup."""
     try:
         initialize_default_users()
@@ -69,6 +71,11 @@ def on_startup():
         create_agent_decisions_collection_if_not_exist(client)
         avatar_collections = ensure_avatar_collections()
         logger.info("✅ Avatar collections ready: %s", avatar_collections)
+        
+        # Start the background nagging loop for reminders
+        asyncio.create_task(nagging_loop())
+        logger.info("✅ Reminder nagging scheduler started")
+        
         logger.info("✅ All collections initialized")
     except Exception as e:
         logger.error(f"Startup initialization failed: {e}")
@@ -746,6 +753,26 @@ def add_medication(request: MedicationCreate, user: dict = Depends(verify_token)
 
     except Exception as e:
         logger.error(f"Add medication failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/medications/{med_id}")
+def delete_medication_endpoint(med_id: str, patient_id: str, user: dict = Depends(verify_token)):
+    """Delete a medication."""
+    try:
+        client = get_client()
+        from lifelens.utils.medication_utils import delete_medication
+        
+        success = delete_medication(client, med_id, patient_id)
+        if success:
+            return {"status": "success", "message": "Medication deleted"}
+        else:
+            raise HTTPException(status_code=404, detail="Medication not found")
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Delete medication failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

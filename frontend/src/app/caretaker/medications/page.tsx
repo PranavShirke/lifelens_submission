@@ -63,7 +63,7 @@ function CaretakerMedicationsContent() {
         
         <button
           onClick={() => setIsModalOpen(true)}
-          className="btn-gradient px-6 py-3 rounded-2xl shadow-lg shadow-indigo-200 flex items-center gap-2 font-bold transition-all hover:scale-[1.02] active:scale-[0.98]"
+          className="btn-gradient px-6 py-3 rounded-xl border-2 border-[#1E1B2E] shadow-[4px_4px_0_#1E1B2E] flex items-center gap-2 font-bold transition-all hover:scale-[1.02] active:scale-[0.98]"
         >
           <Plus className="w-5 h-5" />
           Add Medication
@@ -79,7 +79,7 @@ function CaretakerMedicationsContent() {
           <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
         </div>
       ) : medications.length === 0 ? (
-        <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-slate-300">
+        <div className="text-center py-20 bg-white rounded-3xl border-2 border-[#1E1B2E] shadow-[6px_6px_0_#1E1B2E]">
           <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <Pill className="w-8 h-8 text-slate-400" />
           </div>
@@ -95,19 +95,19 @@ function CaretakerMedicationsContent() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               key={med.id}
-              className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group"
+              className="bg-white rounded-3xl border-2 border-[#1E1B2E] p-6 shadow-[6px_6px_0_#1E1B2E] hover:shadow-[8px_8px_0_#1E1B2E] transition-shadow relative overflow-hidden group"
             >
               <div className="absolute top-0 right-0 p-4 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
-                <button className="p-2 bg-slate-50 hover:bg-slate-100 rounded-xl text-slate-400 hover:text-slate-600 transition-colors">
+                <button className="p-2 bg-slate-50 hover:bg-slate-100 rounded-xl border-2 border-[#1E1B2E] text-slate-400 hover:text-slate-600 transition-colors shadow-[2px_2px_0_#1E1B2E]">
                   <Edit3 className="w-4 h-4" />
                 </button>
-                <button className="p-2 bg-rose-50 hover:bg-rose-100 rounded-xl text-rose-400 hover:text-rose-600 transition-colors">
+                <button className="p-2 bg-rose-50 hover:bg-rose-100 rounded-xl border-2 border-[#1E1B2E] text-rose-400 hover:text-rose-600 transition-colors shadow-[2px_2px_0_#1E1B2E]">
                   <Trash2 className="w-4 h-4" />
                 </button>
               </div>
 
               <div className="flex items-start gap-4 mb-4">
-                <div className="p-3 bg-indigo-50 rounded-2xl">
+                <div className="p-3 bg-indigo-50 rounded-2xl border-2 border-[#1E1B2E] shadow-[2px_2px_0_#1E1B2E]">
                   <Pill className="w-6 h-6 text-indigo-500" />
                 </div>
                 <div>
@@ -123,7 +123,7 @@ function CaretakerMedicationsContent() {
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {med.schedule.map((time, idx) => (
-                    <span key={idx} className="px-2.5 py-1 bg-slate-100 rounded-lg text-xs font-bold text-slate-600">
+                    <span key={idx} className="px-2.5 py-1 bg-slate-100 rounded-lg border-2 border-[#1E1B2E] text-xs font-bold text-slate-600 shadow-[2px_2px_0_rgba(30,27,46,0.35)]">
                       {time}
                     </span>
                   ))}
@@ -131,7 +131,7 @@ function CaretakerMedicationsContent() {
               </div>
 
               {med.notes && (
-                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                <div className="p-4 bg-slate-50 rounded-2xl border-2 border-[#1E1B2E] shadow-[3px_3px_0_rgba(30,27,46,0.35)]">
                   <div className="flex items-center gap-2 mb-1.5">
                     <Info className="w-3.5 h-3.5 text-slate-400" />
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Instructions</span>

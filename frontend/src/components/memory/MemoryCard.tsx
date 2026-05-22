@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import type { Memory } from '@/lib/types';
 import apiClient from '@/lib/api/client';
 import { cn, formatRelativeTime, getSentimentEmoji, getTypeIcon } from '@/lib/utils';
@@ -17,6 +17,8 @@ interface MemoryCardProps {
 export default function MemoryCard({ memory, compact, showScore, onClick }: MemoryCardProps) {
   const [mediaData, setMediaData] = useState<{ image?: string; audio?: string } | null>(null);
   const [loadingMedia, setLoadingMedia] = useState(false);
+  const [showFullContent, setShowFullContent] = useState(false);
+  const popupRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (memory.hasMedia && !memory.imageUrl && !memory.audioUrl && !mediaData) {
@@ -34,6 +36,33 @@ export default function MemoryCard({ memory, compact, showScore, onClick }: Memo
 
   const imageUrl = memory.imageUrl || mediaData?.image;
   const audioUrl = memory.audioUrl || mediaData?.audio;
+  const fullContent = useMemo(
+    () => memory.caption || memory.transcript || memory.content || 'No content',
+    [memory.caption, memory.transcript, memory.content]
+  );
+  const canExpandContent = fullContent.length > 170;
+
+  useEffect(() => {
+    if (!showFullContent) return;
+
+    const onPointerDown = (event: MouseEvent) => {
+      if (!popupRef.current) return;
+      if (!popupRef.current.contains(event.target as Node)) {
+        setShowFullContent(false);
+      }
+    };
+
+    const onEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setShowFullContent(false);
+    };
+
+    document.addEventListener('mousedown', onPointerDown);
+    window.addEventListener('keydown', onEscape);
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown);
+      window.removeEventListener('keydown', onEscape);
+    };
+  }, [showFullContent]);
 
   const isWearable = memory.personTags.some(tag => 
     tag.toLowerCase().includes('wearable') || tag.toLowerCase().includes('metaglasses')
@@ -58,8 +87,8 @@ export default function MemoryCard({ memory, compact, showScore, onClick }: Memo
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       className={cn(
-        'card card-lift p-4 cursor-pointer',
-        compact && 'p-3'
+        'card card-lift p-4 cursor-pointer overflow-visible h-full flex flex-col min-h-[260px] relative',
+        compact && 'p-3 min-h-[220px]'
       )}
       onClick={onClick}
     >
@@ -85,7 +114,7 @@ export default function MemoryCard({ memory, compact, showScore, onClick }: Memo
 
       {/* Media Preview */}
       {memory.type === 'image' && (
-        <div className="w-full h-40 rounded-xl bg-slate-100 mb-3 flex items-center justify-center overflow-hidden border border-slate-100 relative">
+        <div className="w-full h-36 rounded-xl bg-slate-100 mb-3 flex items-center justify-center overflow-hidden border border-slate-100 relative">
           {loadingMedia && (
             <div className="absolute inset-0 bg-slate-100/80 flex items-center justify-center z-10 backdrop-blur-sm">
               <Loader2 className="w-6 h-6 text-indigo-400 animate-spin" />
@@ -133,16 +162,51 @@ export default function MemoryCard({ memory, compact, showScore, onClick }: Memo
       )}
 
       {/* Content */}
-      <p className={cn(
-        'text-sm text-text-primary leading-relaxed mb-3',
+      <div className="relative mb-3">
+        <p className={cn(
+        'text-sm text-text-primary leading-relaxed',
         !compact && 'line-clamp-3',
         compact && 'line-clamp-2'
       )}>
-        {memory.caption || memory.transcript || memory.content || 'No content'}
-      </p>
+          {fullContent}
+        </p>
+
+        {canExpandContent && !compact && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowFullContent((prev) => !prev);
+            }}
+            className="mt-2 text-xs font-bold text-[#FF8C42] hover:text-[#1E1B2E] transition-colors"
+          >
+            {showFullContent ? 'Hide' : 'Read more'}
+          </button>
+        )}
+
+        {showFullContent && (
+          <motion.div
+            ref={popupRef}
+            initial={{ opacity: 0, y: -6, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ duration: 0.18 }}
+            className="absolute left-0 top-full mt-2 z-40 w-full max-w-full md:max-w-[560px] rounded-xl border-2 border-[#1E1B2E] bg-white p-4 shadow-[8px_8px_0_#1E1B2E]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="text-sm text-[#1E1B2E] leading-relaxed whitespace-pre-wrap break-words">{fullContent}</p>
+            <button
+              type="button"
+              onClick={() => setShowFullContent(false)}
+              className="mt-3 text-xs font-bold text-[#FF8C42] hover:text-[#1E1B2E] transition-colors"
+            >
+              Close
+            </button>
+          </motion.div>
+        )}
+      </div>
 
       {/* Tags */}
-      <div className="flex flex-wrap gap-1.5">
+      <div className="flex flex-wrap gap-1.5 mt-auto">
         {memory.personTags.map((tag) => (
           <span key={tag} className="badge badge-gray">
             <User className="w-3 h-3" /> {tag}

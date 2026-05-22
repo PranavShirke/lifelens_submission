@@ -60,15 +60,38 @@ class MemoryService:
         )
         return point_id
 
-    def search_face(self, embedding: list, limit=1):
-        # Search BOTH faces and patients collections for recognition
-        # Merge results manually
-        res1 = self.client.query_points(collection_name=self.faces_collection, query=embedding, limit=limit).points
-        res2 = self.client.query_points(collection_name=self.patients_collection, query=embedding, limit=limit).points
-        
-        all_res = res1 + res2
-        all_res.sort(key=lambda x: x.score, reverse=True)
-        return all_res[:limit]
+    def search_face(self, embedding: list, limit=5):
+        """Search face/patient collections and return best unique identities.
+
+        We query with a wider candidate window and then deduplicate by person_id
+        to avoid recency bias from near-duplicate points.
+        """
+        query_limit = max(int(limit), 5)
+
+        res1 = self.client.query_points(
+            collection_name=self.faces_collection,
+            query=embedding,
+            limit=query_limit,
+        ).points
+        res2 = self.client.query_points(
+            collection_name=self.patients_collection,
+            query=embedding,
+            limit=query_limit,
+        ).points
+
+        all_res = list(res1) + list(res2)
+
+        best_by_person = {}
+        for pt in all_res:
+            payload = pt.payload or {}
+            person_id = payload.get("person_id") or payload.get("name") or str(pt.id)
+            prev = best_by_person.get(person_id)
+            if prev is None or float(pt.score) > float(prev.score):
+                best_by_person[person_id] = pt
+
+        deduped = list(best_by_person.values())
+        deduped.sort(key=lambda x: float(x.score), reverse=True)
+        return deduped[:limit]
 
     def store_object_memory(self, object_id: str, embedding: list, metadata: dict):
         from datetime import datetime

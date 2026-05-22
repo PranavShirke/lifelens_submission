@@ -16,7 +16,7 @@ export default function TopBar() {
     <header className="sticky top-0 z-30 px-4 md:px-6 py-3">
       <div className="flex items-center justify-between gap-2 md:gap-4">
         {/* Mobile Menu Button */}
-        <button onClick={toggleSidebar} className="md:hidden p-2 -ml-2 rounded-xl text-[#5A576E] hover:bg-[#FFF5E6] transition-colors flex-shrink-0">
+        <button onClick={toggleSidebar} className="md:hidden p-2 -ml-2 rounded-xl text-[#5A576E] hover:bg-[#FFF5E6] border-2 border-[#1E1B2E] shadow-[3px_3px_0_#1E1B2E] transition-all flex-shrink-0">
           <Menu className="w-6 h-6" />
         </button>
 
@@ -29,7 +29,7 @@ export default function TopBar() {
               placeholder="Search memories, medications, alerts..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-[#f6f5fa] border-none shadow-[inset_0px_3px_6px_rgba(30,27,46,0.05),inset_0px_-1px_2px_rgba(255,255,255,1)] focus:ring-2 focus:ring-[#FF8C42]/30 rounded-[14px] pl-10 pr-4 py-2.5 outline-none text-sm transition-all text-[#1E1B2E] font-medium placeholder:text-[#9896B0]"
+              className="w-full bg-[#fffdf8] border-2 border-[#1E1B2E] shadow-[4px_4px_0_#1E1B2E] focus:ring-2 focus:ring-[#FF8C42]/30 rounded-[12px] pl-10 pr-4 py-2.5 outline-none text-sm transition-all text-[#1E1B2E] font-medium placeholder:text-[#9896B0]"
             />
             {searchQuery && (
               <button
@@ -48,7 +48,7 @@ export default function TopBar() {
           <div className="relative">
             <button
               onClick={() => setShowNotifications(!showNotifications)}
-              className="relative p-2.5 rounded-xl hover:bg-[#FFF5E6] transition-colors"
+              className="relative p-2.5 rounded-xl border-2 border-[#1E1B2E] shadow-[3px_3px_0_#1E1B2E] hover:bg-[#FFF5E6] transition-all"
             >
               <Bell className="w-5 h-5 text-[#5A576E]" />
               <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-[#D4A0A0] rounded-full" />
@@ -84,9 +84,9 @@ export default function TopBar() {
           </div>
 
           {/* User menu */}
-          <button className="flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-[#FFF5E6] transition-colors">
+          <button className="flex items-center gap-2 px-3 py-2 rounded-xl border-2 border-[#1E1B2E] shadow-[3px_3px_0_#1E1B2E] hover:bg-[#FFF5E6] transition-all">
             <div 
-              className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold"
+              className="w-8 h-8 rounded-full border-2 border-[#1E1B2E] flex items-center justify-center text-white text-sm font-bold"
               style={{ background: 'linear-gradient(135deg, #FF8C42, #7A9E7A)' }}
             >
               {user?.fullName?.charAt(0) || 'U'}

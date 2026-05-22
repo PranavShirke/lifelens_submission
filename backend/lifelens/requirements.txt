@@ -21,3 +21,6 @@ langgraph
 langchain-groq
 langchain-core
 pydantic
+opencv-python-headless
+deepface>=0.0.93
+tf-keras>=2.16.0

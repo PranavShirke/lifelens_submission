@@ -77,13 +77,13 @@ export default function Sidebar() {
   };
 
   return (
-    <aside className="w-[240px] h-full flex flex-col border-r border-[#FF8C42]/10 relative z-50" style={{ background: '#1E1B2E' }}>
+    <aside className="w-[240px] h-full flex flex-col border-r-2 border-[#140F25] relative z-50 shadow-[6px_0_0_#140F25]" style={{ background: '#1E1B2E' }}>
       
       {/* Logo */}
       <div className="px-5 pt-6 pb-4 border-b border-[#FF8C42]/10">
         <div className="flex items-center gap-2.5">
           <div 
-            className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+            className="w-8 h-8 rounded-lg border-2 border-[#140F25] flex items-center justify-center flex-shrink-0 shadow-[2px_2px_0_#140F25]"
             style={{ background: 'linear-gradient(135deg, #FF8C42 0%, #7A9E7A 100%)' }}
           >
             <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
@@ -100,7 +100,7 @@ export default function Sidebar() {
       <div className="px-4 py-3 border-b border-[#FF8C42]/10">
         <div className="flex items-center gap-2.5 px-1">
           <div 
-            className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
+            className="w-8 h-8 rounded-full border-2 border-[#140F25] shadow-[2px_2px_0_#140F25] flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
             style={{ background: 'linear-gradient(135deg, #FF8C42, #7A9E7A)' }}
           >
             {firstName.charAt(0)}

@@ -26,8 +26,28 @@ export default function WearableHUD({ onClose, onCapture }: WearableHUDProps) {
   const { addToast } = useUIStore();
   const [hudActive, setHudActive] = useState(false);
 
-  // Mock detections
+  // Live detections from camera analysis
   const [detections, setDetections] = useState<{ id: number; x: number; y: number; label: string }[]>([]);
+  const [scanCount, setScanCount] = useState(0);
+  const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const lastAnnouncedRef = useRef<{ name: string; at: number } | null>(null);
+
+  const announcePerson = useCallback((name: string) => {
+    if (!voiceEnabled || typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+    const now = Date.now();
+    const prev = lastAnnouncedRef.current;
+
+    // Avoid repeating the same name too frequently.
+    if (prev && prev.name === name && now - prev.at < 12000) return;
+
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(`${name} recognized`);
+    utterance.rate = 0.95;
+    utterance.pitch = 1.0;
+    utterance.volume = 0.85;
+    window.speechSynthesis.speak(utterance);
+    lastAnnouncedRef.current = { name, at: now };
+  }, [voiceEnabled]);
 
   // Real-time Facial Recognition Loop
   useEffect(() => {
@@ -51,22 +71,32 @@ export default function WearableHUD({ onClose, onCapture }: WearableHUDProps) {
             findObject(file).catch(() => null)
           ]);
           
+          setScanCount(prev => prev + 1);
           let updatedDetections: { id: number; x: number; y: number; label: string }[] = [];
 
           if (faceRes) {
             if (faceRes.status === 'identified' && faceRes.person?.name) {
-              updatedDetections.push({ id: 1, x: 5, y: 35, label: `FACE: ${faceRes.person.name.toUpperCase()}` });
+              const recognizedName = faceRes.person.name;
+              updatedDetections.push({ id: 1, x: 5, y: 35, label: `FACE: ${recognizedName.toUpperCase()}` });
+              announcePerson(recognizedName);
+            } else if ((faceRes as any).status === 'ambiguous') {
+              updatedDetections.push({ id: 1, x: 5, y: 35, label: 'FACE: POSSIBLE MATCH' });
+            } else if (faceRes.status === 'no_face_detected') {
+              // No face in frame — don't show anything
             } else if (faceRes.status === 'unknown') {
-              updatedDetections.push({ id: 1, x: 5, y: 35, label: `FACE: UNKNOWN` });
+              updatedDetections.push({ id: 1, x: 5, y: 35, label: `FACE: UNREGISTERED` });
             }
           }
 
           if (objRes) {
             if (objRes.status === 'identified' && objRes.object?.name) {
               updatedDetections.push({ id: 2, x: 5, y: 45, label: `OBJECT: ${objRes.object.name.toUpperCase()}` });
-            } else if (objRes.status === 'unknown') {
-              updatedDetections.push({ id: 2, x: 5, y: 45, label: `OBJECT: UNKNOWN` });
+            } else if ((objRes as any).detected_label) {
+              // YOLO detected something but it's not enrolled
+              const rawLabel = (objRes as any).detected_label as string;
+              updatedDetections.push({ id: 2, x: 5, y: 45, label: `DETECTED: ${rawLabel.toUpperCase()} (NOT ENROLLED)` });
             }
+            // Don't show anything for completely empty scans
           }
 
           setDetections(updatedDetections);
@@ -79,7 +109,15 @@ export default function WearableHUD({ onClose, onCapture }: WearableHUDProps) {
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [isRecording]);
+  }, [announcePerson, isRecording]);
+
+  useEffect(() => {
+    return () => {
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, []);
 
   // Timer Effect
   useEffect(() => {
@@ -171,6 +209,12 @@ export default function WearableHUD({ onClose, onCapture }: WearableHUDProps) {
 
           {/* HUD Overlay Container */}
           <div className="absolute inset-0 pointer-events-none overflow-hidden text-cyan-400">
+            {/* Frame corners for sleek HUD feel */}
+            <div className="absolute left-6 top-6 w-14 h-14 border-l-2 border-t-2 border-cyan-400/50" />
+            <div className="absolute right-6 top-6 w-14 h-14 border-r-2 border-t-2 border-cyan-400/50" />
+            <div className="absolute left-6 bottom-6 w-14 h-14 border-l-2 border-b-2 border-cyan-400/50" />
+            <div className="absolute right-6 bottom-6 w-14 h-14 border-r-2 border-b-2 border-cyan-400/50" />
+
             {/* Scanning Line */}
             <motion.div 
                animate={{ top: ['0%', '100%'] }} 
@@ -180,16 +224,21 @@ export default function WearableHUD({ onClose, onCapture }: WearableHUDProps) {
 
             {/* AI Metrics (Left) */}
             <div className="absolute top-10 left-12 flex flex-col gap-3 font-mono">
-              <HudMetric icon={Scan} label="FOV" value="120°" />
-              <HudMetric icon={Target} label="ACC" value="98.2%" />
-              <HudMetric icon={Brain} label="MODE" value="Memory Hunt" />
+              <HudMetric icon={Scan} label="STATUS" value={isRecording ? 'SCANNING' : 'STANDBY'} />
+              <HudMetric icon={Target} label="SCANS" value={scanCount.toString()} />
+              <HudMetric icon={Brain} label="DETECTIONS" value={detections.length.toString()} />
             </div>
 
-            {/* GPS Metrics (Bottom Left) */}
+            {/* Status (Bottom Left) */}
             <div className="absolute bottom-10 left-12 flex flex-col gap-1 font-mono text-[10px] text-cyan-400/60 uppercase tracking-widest">
-              <div>GPS: 40.7128° N, 74.0060° W</div>
-              <div>ALT: 12.4m</div>
-              <div>SYS: STABLE</div>
+              <div>MODE: {isRecording ? 'ACTIVE RECOGNITION' : 'IDLE'}</div>
+              <div>CAPTURES: {capturedMoments.length}</div>
+              <div>SYS: {hudActive ? 'ONLINE' : 'BOOTING'}</div>
+            </div>
+
+            {/* Voice status */}
+            <div className="absolute top-10 right-40 px-3 py-1.5 rounded-md border border-cyan-400/30 bg-black/30 text-[9px] font-black tracking-widest text-cyan-300 uppercase">
+              Voice: {voiceEnabled ? 'On' : 'Off'}
             </div>
 
             {/* Detection Boxes */}
@@ -253,10 +302,18 @@ export default function WearableHUD({ onClose, onCapture }: WearableHUDProps) {
               <div className="absolute inset-0 bg-cyan-400/10 opacity-0 group-hover:opacity-100 transition-opacity" />
             </motion.button>
 
-            <div className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-md border border-white/20 flex flex-col items-center justify-center text-white/60">
-               <Shield className="w-4 h-4 mb-0.5" />
-               <span className="text-[8px] font-black uppercase">SEC</span>
-            </div>
+            <button
+              onClick={() => setVoiceEnabled((v) => !v)}
+              className={cn(
+                "w-12 h-12 rounded-full backdrop-blur-md border flex flex-col items-center justify-center transition-colors",
+                voiceEnabled
+                  ? "bg-cyan-500/15 border-cyan-400/50 text-cyan-300"
+                  : "bg-black/40 border-white/20 text-white/60"
+              )}
+            >
+              <Shield className="w-4 h-4 mb-0.5" />
+              <span className="text-[8px] font-black uppercase">VOX</span>
+            </button>
           </div>
 
           {/* Recording Timer (Top Right) */}

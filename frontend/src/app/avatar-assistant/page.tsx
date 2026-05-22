@@ -218,6 +218,14 @@ function AvatarAssistantScreen() {
             const responseText = `I found ${result.object.name}.${location}`;
             appendMessage({ id: `assistant-${Date.now()}`, role: 'assistant', text: responseText, image: result.object.image || undefined });
             speakResponse(responseText);
+          } else if ((result as any).suggestion) {
+            const suggestion = (result as any).suggestion as string;
+            appendMessage({
+              id: `assistant-${Date.now()}`,
+              role: 'assistant',
+              text: suggestion,
+            });
+            speakResponse(suggestion);
           } else {
             appendMessage({
               id: `assistant-${Date.now()}`,

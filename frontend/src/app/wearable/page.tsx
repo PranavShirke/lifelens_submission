@@ -7,7 +7,8 @@ import { useSessionStore } from '@/lib/store/session-store';
 import { getMemories } from '@/lib/api/memories';
 import type { Memory } from '@/lib/types';
 import { 
-  Watch, Activity, Zap, Shield, Image as ImageIcon, 
+  Watch, Activity, Zap, Shield, Image as ImageIcon,
+  HeartPulse, Droplets, Thermometer, Footprints,
   Sparkles, ChevronRight, Camera, Smartphone, Bluetooth
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -47,6 +48,13 @@ function WearableContent() {
   useEffect(() => {
     fetchMemories();
   }, [activePatientId]);
+
+  const vitalsTrend = [
+    18, 14, 12, 11, 12, 13, 14, 15, 17, 21,
+    24, 20, 28, 30, 29, 37, 39, 34, 50, 49,
+    41, 50, 37, 31, 35, 29, 25, 26, 24, 27,
+    23, 16, 12, 10, 10, 11, 13, 14, 17, 18,
+  ];
 
   return (
     <div className="max-w-6xl mx-auto pb-20">
@@ -107,42 +115,45 @@ function WearableContent() {
 
         {/* Row 1: Interactive Health Visualization */}
         <div className="col-span-12 lg:col-span-8 flex flex-col gap-6">
-          <div className="card p-8 bg-gradient-to-br from-indigo-600 to-violet-700 border-none shadow-2xl relative overflow-hidden h-full">
-            <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-[100px] -mr-32 -mt-32" />
-            <div className="absolute bottom-0 left-0 w-48 h-48 bg-indigo-400/20 rounded-full blur-[80px] -ml-24 -mb-24" />
-            
-            <div className="flex items-center justify-between mb-10 relative z-10">
-               <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-white/10 backdrop-blur-md flex items-center justify-center border border-white/10">
-                    <Activity className="w-5 h-5 text-white" />
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-black text-white leading-none">Biometric Stream</h3>
-                    <p className="text-[10px] font-bold text-indigo-200 uppercase tracking-widest mt-1">Real-time vitals from wearable</p>
-                  </div>
-               </div>
-               <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-400 text-[10px] font-black uppercase tracking-widest border border-emerald-500/20">
-                  <Zap className="w-3 h-3 animate-pulse" /> Live
-               </div>
+          <div className="card p-6 md:p-7 border-2 border-[#1E1B2E] shadow-[8px_8px_0_#1E1B2E] bg-gradient-to-br from-[#F2F6FF] via-white to-[#F7F4FF] relative overflow-hidden h-full">
+            <div className="absolute top-0 right-0 w-72 h-72 bg-indigo-200/30 rounded-full blur-[110px] -mr-36 -mt-36" />
+
+            <div className="flex items-center justify-between mb-6 relative z-10">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-xl bg-white border-2 border-[#1E1B2E] shadow-[2px_2px_0_#1E1B2E] flex items-center justify-center">
+                  <Activity className="w-5 h-5 text-indigo-600" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-black text-[#1E1B2E] leading-none">Biometric Stream</h3>
+                  <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest mt-1">Real-time vitals from wearable</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-[10px] bg-emerald-100 text-emerald-700 text-[10px] font-black uppercase tracking-widest border-2 border-[#1E1B2E] shadow-[2px_2px_0_#1E1B2E]">
+                <Zap className="w-3 h-3" /> Live
+              </div>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-6 relative z-10">
-              <HealthStat icon="❤️" label="Heart Rate" value="72" unit="bpm" />
-              <HealthStat icon="💨" label="SpO2" value="98" unit="%" />
-              <HealthStat icon="🌡️" label="Temp" value="36.6" unit="°C" />
-              <HealthStat icon="👣" label="Steps" value="4,821" unit="today" />
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 relative z-10">
+              <HealthStat icon={HeartPulse} accent="text-rose-600" bg="bg-rose-50" label="Heart Rate" value="72" unit="bpm" />
+              <HealthStat icon={Droplets} accent="text-cyan-600" bg="bg-cyan-50" label="SpO2" value="98" unit="%" />
+              <HealthStat icon={Thermometer} accent="text-amber-600" bg="bg-amber-50" label="Temp" value="36.6" unit="°C" />
+              <HealthStat icon={Footprints} accent="text-violet-600" bg="bg-violet-50" label="Steps" value="4,821" unit="today" />
             </div>
 
-            <div className="mt-10 h-32 w-full flex items-end gap-1 relative z-10">
-               {Array.from({ length: 40 }).map((_, i) => (
-                 <motion.div 
-                   key={i}
-                   initial={{ height: 20 }}
-                   animate={{ height: [20, 60 + Math.random() * 40, 20] }}
-                   transition={{ duration: 1.5, repeat: Infinity, delay: i * 0.05 }}
-                   className="flex-1 bg-white/20 rounded-full h-full"
-                 />
-               ))}
+            <div className="mt-6 rounded-2xl border-2 border-[#1E1B2E] bg-white p-4 shadow-[3px_3px_0_#1E1B2E] relative z-10">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Vitals trend (last 40 min)</p>
+                <p className="text-[10px] font-bold text-slate-400">sampled every 1 min</p>
+              </div>
+              <div className="h-24 w-full flex items-end gap-1">
+                {vitalsTrend.map((h, i) => (
+                  <div
+                    key={i}
+                    style={{ height: `${h * 1.5}px` }}
+                    className="flex-1 rounded-full bg-gradient-to-t from-indigo-500/65 to-indigo-300/75"
+                  />
+                ))}
+              </div>
             </div>
           </div>
 
@@ -199,14 +210,30 @@ function PrivacyToggle({ label, defaultChecked }: { label: string, defaultChecke
   );
 }
 
-function HealthStat({ icon, label, value, unit }: any) {
+function HealthStat({
+  icon: Icon,
+  label,
+  value,
+  unit,
+  accent,
+  bg,
+}: {
+  icon: React.ElementType;
+  label: string;
+  value: string;
+  unit: string;
+  accent: string;
+  bg: string;
+}) {
   return (
-    <div className="text-white">
-      <div className="text-lg mb-1">{icon}</div>
-      <p className="text-[10px] font-bold text-indigo-200 uppercase tracking-widest mb-1">{label}</p>
-      <div className="flex items-baseline gap-1">
-        <span className="text-2xl font-black">{value}</span>
-        <span className="text-[10px] font-bold text-indigo-200 uppercase">{unit}</span>
+    <div className="rounded-2xl border-2 border-[#1E1B2E] bg-white p-3 shadow-[3px_3px_0_#1E1B2E]">
+      <div className={`w-8 h-8 rounded-lg ${bg} border border-slate-200 flex items-center justify-center mb-2`}>
+        <Icon className={`w-4 h-4 ${accent}`} />
+      </div>
+      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{label}</p>
+      <div className="flex items-end gap-1">
+        <span className="text-2xl font-black text-[#1E1B2E] leading-none">{value}</span>
+        <span className="text-[10px] font-bold text-slate-500 uppercase mb-0.5">{unit}</span>
       </div>
     </div>
   );

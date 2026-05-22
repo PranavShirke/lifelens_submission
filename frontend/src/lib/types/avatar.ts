@@ -28,7 +28,7 @@ export interface AvatarStoredResponse {
 }
 
 export interface AvatarRecognizePersonResponse {
-  status: 'identified' | 'unknown' | 'no_face_detected';
+  status: 'identified' | 'unknown' | 'no_face_detected' | 'ambiguous';
   person: AvatarPerson | null;
 }
 

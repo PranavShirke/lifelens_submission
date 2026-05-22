@@ -119,12 +119,26 @@ def send_trigger_notification(trigger: Dict) -> bool:
         return False
 
 
-def schedule_daily_recap_reminder(patient_name: str = "patient") -> bool:
+def get_topic_for_patient(patient_id: Optional[str] = None) -> str:
+    """
+    Returns the appropriate ntfy topic URL for a patient.
+    Currently returns the base NTFY_TOPIC_URL to ensure consistency,
+    but can be updated to use patient-specific topics if desired.
+    """
+    # For now, we prefer consistency on the main caregiver topic per user preference.
+    # To enable patient-specific topics, uncomment the logic below:
+    # if patient_id and "lifelens-caregiver-alerts" in NTFY_TOPIC_URL:
+    #     return NTFY_TOPIC_URL.replace("lifelens-caregiver-alerts", f"lifelens-med-{patient_id}")
+    return NTFY_TOPIC_URL
+
+
+def schedule_daily_recap_reminder(patient_name: str = "patient", patient_id: Optional[str] = None) -> bool:
     """
     Schedules daily recap notification.
     
     Args:
         patient_name: Name of the patient for personalization
+        patient_id: Optional patient ID for topic resolution
         
     Returns:
         True if successful, False otherwise
@@ -132,10 +146,11 @@ def schedule_daily_recap_reminder(patient_name: str = "patient") -> bool:
     title = "LifeLens Daily Recap"
     message = f"Time to add today's memories for {patient_name}. Even small moments matter!"
     
-    return send_ntfy(title, message, priority="medium", tags="calendar,memo")
+    topic = get_topic_for_patient(patient_id)
+    return send_ntfy(title, message, priority="medium", tags="calendar,memo", topic_url=topic)
 
 
-def send_custom_notification(title: str, message: str, priority: str = "medium") -> bool:
+def send_custom_notification(title: str, message: str, priority: str = "medium", patient_id: Optional[str] = None) -> bool:
     """
     Sends a custom notification.
     
@@ -143,11 +158,13 @@ def send_custom_notification(title: str, message: str, priority: str = "medium")
         title: Notification title
         message: Notification message
         priority: Priority level
+        patient_id: Optional patient ID for topic resolution
         
     Returns:
         True if successful, False otherwise
     """
-    return send_ntfy(title, message, priority, tags="bell")
+    topic = get_topic_for_patient(patient_id)
+    return send_ntfy(title, message, priority, tags="bell", topic_url=topic)
 
 
 def send_mood_alert(patient_id: str, summary: str, risk_score: float) -> bool:
@@ -255,31 +272,33 @@ def send_medication_notification(patient_id: str, med_name: str, status: str, no
         return False
 
 
-def send_reminder_notification(patient_id: str, task: str, time_str: str, 
-                               topic_url: Optional[str] = None) -> bool:
+def send_reminder_notification(patient_id: str, task: str, time_str: str) -> bool:
     """
     Sends notification about a new active reminder.
     """
     try:
         title = f"New Reminder - {patient_id}"
         message = f"A new task has been added:\n• {task}\nTime: {time_str}"
-        return send_ntfy(title, message, priority="high", tags="alarm_clock,memo", topic_url=topic_url)
+        topic = get_topic_for_patient(patient_id)
+        return send_ntfy(title, message, priority="high", tags="alarm_clock,memo", topic_url=topic)
     except Exception as e:
         logger.error(f"Error in send_reminder_notification: {e}")
         return False
 
 
-def send_nagging_notification(title: str, message: str, topic_url: Optional[str] = None) -> bool:
+def send_nagging_notification(title: str, message: str, patient_id: Optional[str] = None) -> bool:
     """
     Sends a nagging (repeated) notification.
     """
     try:
+        topic = get_topic_for_patient(patient_id)
+        # Avoid emojis in title/headers to prevent encoding errors
         return send_ntfy(
-            title=f"🕒 NAG: {title}",
+            title=f"NAG: {title}",
             body=message + "\n\n(This will repeat every 10 minutes until completed)",
             priority="high",
-            tags="hourglass_flowing_sand,loudspeaker",
-            topic_url=topic_url
+            tags="hourglass_flowing_sand,loudspeaker,clock3",
+            topic_url=topic
         )
     except Exception as e:
         logger.error(f"Error in send_nagging_notification: {e}")

@@ -65,11 +65,20 @@ def get_memory_stats(client, patient_id: str):
     streak = 0
     if sorted_dates:
         current_date = datetime.now().date()
-        for date in sorted_dates:
-            if (current_date - date).days == streak:
-                streak += 1
-            else:
-                break
+        # Allow starting from today or yesterday
+        check_date = current_date
+        if sorted_dates[0] < current_date:
+            check_date = sorted_dates[0]
+            # Only count if the most recent memory is from today or yesterday
+            if (current_date - check_date).days > 1:
+                check_date = None
+        if check_date is not None:
+            for date in sorted_dates:
+                if date == check_date:
+                    streak += 1
+                    check_date = check_date - timedelta(days=1)
+                elif date < check_date:
+                    break
     
     # Recent activity (last 7 days)
     week_ago = datetime.now() - timedelta(days=7)
