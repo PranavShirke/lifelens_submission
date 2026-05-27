@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Camera, Loader2, X } from 'lucide-react';
+import { Camera, Loader2, X, Upload } from 'lucide-react';
 
 interface AvatarCameraModalProps {
   open: boolean;
@@ -20,6 +20,7 @@ export default function AvatarCameraModal({
 }: AvatarCameraModalProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
@@ -125,6 +126,13 @@ export default function AvatarCameraModal({
     );
   };
 
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      onCapture(file);
+    }
+  };
+
   if (!open) {
     return null;
   }
@@ -167,6 +175,22 @@ export default function AvatarCameraModal({
         </div>
 
         <div className="flex items-center justify-end gap-3 border-t border-white/10 bg-[#1E1B2E] px-4 py-3">
+          <input 
+            type="file" 
+            accept="image/*" 
+            ref={fileInputRef} 
+            onChange={handleFileUpload} 
+            className="hidden" 
+          />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isProcessing}
+            className="btn-outline inline-flex items-center gap-2 px-4 py-2 text-xs disabled:cursor-not-allowed disabled:opacity-60"
+            type="button"
+          >
+            <Upload className="h-4 w-4" />
+            Upload Image
+          </button>
           <button
             onClick={onClose}
             className="btn-outline px-4 py-2 text-xs"

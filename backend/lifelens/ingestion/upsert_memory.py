@@ -4,10 +4,52 @@ warnings.filterwarnings('ignore', category=FutureWarning, module='google.generat
 import google.generativeai as genai
 from qdrant_client import QdrantClient
 from qdrant_client.http import models
-from lifelens.config import QDRANT_COLLECTION_NAME, GEMINI_API_KEY
+from lifelens.config import QDRANT_COLLECTION_NAME, GEMINI_API_KEY, GROQ_API_KEY
 import uuid
 import time
 import logging
+from lifelens.qdrant.knowledge_graph import get_knowledge_graph
+from pydantic import BaseModel, Field
+from typing import List
+from langchain_groq import ChatGroq
+from langchain_core.messages import SystemMessage, HumanMessage
+
+class GraphRelation(BaseModel):
+    source: str = Field(description="Source entity")
+    target: str = Field(description="Target entity")
+    relation: str = Field(description="Relationship (e.g., 'visited', 'spoke_to')")
+
+class EntityExtraction(BaseModel):
+    entities: List[str] = Field(description="List of distinct entities found")
+    relations: List[GraphRelation] = Field(description="List of relationships between entities")
+
+def _extract_graph_entities(text: str, memory_id: str):
+    """Uses Groq to extract entities and relationships and adds them to Knowledge Graph."""
+    if not GROQ_API_KEY or not text:
+        return
+        
+    try:
+        llm = ChatGroq(api_key=GROQ_API_KEY, model="llama-3.3-70b-versatile", temperature=0.1)
+        structured_llm = llm.with_structured_output(EntityExtraction)
+        
+        system_prompt = "You are an entity extraction system. Extract key entities (people, places, things) and their relationships from the given text. Relations should be short verbs like 'visited', 'spoke_to', 'bought', 'ate'."
+        messages = [
+            SystemMessage(content=system_prompt),
+            HumanMessage(content=f"Text: {text}")
+        ]
+        
+        extraction: EntityExtraction = structured_llm.invoke(messages)
+        kg = get_knowledge_graph()
+        
+        for entity in extraction.entities:
+            kg.add_entity(entity)
+            
+        for rel in extraction.relations:
+            kg.add_relationship(rel.source, rel.target, rel.relation, memory_id)
+            
+        logging.info(f"Extracted {len(extraction.entities)} entities and {len(extraction.relations)} relations for memory {memory_id}")
+    except Exception as e:
+        logging.warning(f"Failed to extract graph entities: {e}")
 
 # Configure Gemini
 if GEMINI_API_KEY:
@@ -112,6 +154,9 @@ def upsert_memory(client: QdrantClient, memory_type: str, data: dict):
             points=[point]
         )
         logging.info(f"Successfully upserted {memory_type} memory with ID {point_id}")
+        
+        # Extract and store graph entities
+        _extract_graph_entities(text_to_embed, point_id)
         
         # Also upsert to mood_events collection if mood data is present
         if "sentiment" in payload or "mood" in data:

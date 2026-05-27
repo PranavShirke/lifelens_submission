@@ -874,12 +874,12 @@ export default function LandingPage() {
         </div>
         <div className="features-grid">
           {[
-            { icon: "🧠", title: "Semantic memory search", desc: "Ask in plain words — 'What did I do last Christmas?' — and LifeLens finds the answer from stored photos, voice notes, and text, grounded in real evidence.", accent: "#FF8C42" },
-            { icon: "📸", title: "Multimodal capture", desc: "Images, voice recordings, and written notes — all automatically described, tagged with people and places, and stored safely in a personal memory vault.", accent: "#7A9E7A" },
-            { icon: "💊", title: "Medication intelligence", desc: "Smart reminders, dose tracking, and adherence analytics. Caretakers receive instant alerts when a dose is missed, so care never has a gap.", accent: "#D4A0A0" },
-            { icon: "😊", title: "Mood & wellbeing monitoring", desc: "Multi-signal mood analysis detects patterns and risks early. Risk scores prompt gentle caretaker intervention before things escalate.", accent: "#7A9E7A" },
-            { icon: "👥", title: "Family portal", desc: "A safe, read-only window for loved ones. Browse the memory lane, request a new memory capture, or leave a message — with dignity and privacy.", accent: "#FF8C42" },
-            { icon: "🗺️", title: "Memory map", desc: "Every memory pinned to the place it happened. Revisit familiar streets, favourite cafés, and meaningful locations through an interactive map.", accent: "#C9A96E" },
+            { icon: "👓", title: "Wearable HUD & Real-time Vision", desc: "Uses your device camera or smart glasses to recognize enrolled faces and objects in real-time, instantly displaying their names to aid memory recall.", accent: "#FF8C42" },
+            { icon: "💬", title: "Conversational AI Companion", desc: "The Avatar Assistant acts as a friendly companion. It remembers past conversations, answers questions contextually, and helps you navigate daily tasks.", accent: "#7A9E7A" },
+            { icon: "👨‍👩‍👧‍👦", title: "Caretaker Portal & Memory Bank", desc: "Family members can remotely enroll new faces and objects into the patient's 'Memory Bank', and monitor health logs or quarantine status securely.", accent: "#D4A0A0" },
+            { icon: "🧠", title: "Semantic Memory Search", desc: "Ask in plain words — 'What did I do last Christmas?' — and LifeLens finds the answer from stored photos, voice notes, and text, grounded in real evidence.", accent: "#FF8C42" },
+            { icon: "💊", title: "Medication Intelligence", desc: "Smart reminders, dose tracking, and adherence analytics. Caretakers receive instant alerts when a dose is missed, so care never has a gap.", accent: "#7A9E7A" },
+            { icon: "😊", title: "Mood & Wellbeing Monitoring", desc: "Multi-signal mood analysis detects patterns and risks early. Risk scores prompt gentle caretaker intervention before things escalate.", accent: "#C9A96E" },
           ].map((f, i) => (
             <FeatCard key={i} {...f} delay={i * 80} />
           ))}

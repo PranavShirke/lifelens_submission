@@ -62,19 +62,45 @@ def _resolve_yolo_model_path(explicit_model_path: str | None = None) -> str:
     return explicit_model_path or settings.YOLO_MODEL_PATH or "yolov8n.pt"
 
 
-def _fallback_embedding(image_path: str) -> List[float]:
-    """Deterministic lightweight embedding used when TensorFlow is unavailable."""
-    image = Image.open(image_path).convert("L").resize((40, 32))
-    arr = np.asarray(image, dtype=np.float32) / 255.0
-    vec = arr.flatten()  # 40*32=1280
-    return vec.astype(np.float32).tolist()
+import tensorflow as tf
+from tf_keras.applications.mobilenet_v2 import MobileNetV2, preprocess_input
+from tf_keras.preprocessing import image as keras_image
+from tf_keras.models import Model
 
+# Global model instance (lazy load)
+import threading
+_embedding_model_lock = threading.Lock()
+_embedding_model = None
+
+def get_embedding_model():
+    global _embedding_model
+    with _embedding_model_lock:
+        if _embedding_model is None:
+            import logging
+            logging.info("Loading MobileNetV2 for Objects...")
+            base = MobileNetV2(weights='imagenet', include_top=False, pooling='avg')
+            _embedding_model = Model(inputs=base.input, outputs=base.output)
+    return _embedding_model
+
+def _fallback_embedding(image_path: str) -> List[float]:
+    """Uses MobileNetV2 for rich semantic object embedding."""
+    model = get_embedding_model()
+    
+    # Load and preprocess
+    img = keras_image.load_img(image_path, target_size=(224, 224))
+    x = keras_image.img_to_array(img)
+    x = np.expand_dims(x, axis=0)
+    x = preprocess_input(x)
+    
+    # Predict
+    embedding = model.predict(x, verbose=0)
+    return embedding[0].tolist()  # 1280-d vector
 
 class ObjectDetector:
     def __init__(self, model_path: str | None = None):
         self.detector = None
         self.model_path = _resolve_yolo_model_path(model_path)
-        self.native_embedding_enabled = False  # Removed MobileNetV2 dependency
+        self.native_embedding_enabled = True
 
         if YOLO is not None:
             try:

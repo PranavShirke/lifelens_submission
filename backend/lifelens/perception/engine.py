@@ -58,7 +58,7 @@ class PerceptionConfig:
 
     # DeepFace
     deepface_detector_backend: str = "opencv"       # fastest for real-time
-    deepface_model_name: str = "VGG-Face"            # good accuracy-speed balance
+    deepface_model_name: str = "Facenet512"          # natively 512d, high accuracy
     deepface_distance_metric: str = "cosine"
 
     # Frame-skip for face recognition (run every Nth frame)
@@ -202,9 +202,11 @@ class FaceRecognizer:
             if df.empty:
                 continue
 
+            top_row = df.iloc[0]
+            
             # The "identity" column holds the full path of the matching image.
             # The parent directory name IS the person's label.
-            top_match_path = Path(str(df.iloc[0]["identity"]))
+            top_match_path = Path(str(top_row["identity"]))
             label = top_match_path.parent.name
 
             # Bounding box of the detected face in the *query* image.

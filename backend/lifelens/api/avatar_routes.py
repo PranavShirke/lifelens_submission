@@ -117,12 +117,12 @@ def _encode_image_base64(image_path: str) -> Optional[str]:
         return None
 
 
-async def _save_upload(file: UploadFile, destination: Path):
+def _save_upload(file: UploadFile, destination: Path):
     with open(destination, "wb") as output:
         shutil.copyfileobj(file.file, output)
 
 
-async def _encode_audio_base64(audio_file: Optional[UploadFile], base_name: str) -> Optional[str]:
+def _encode_audio_base64(audio_file: Optional[UploadFile], base_name: str) -> Optional[str]:
     if not audio_file:
         return None
 
@@ -165,11 +165,11 @@ def _parse_relation_tags(raw_tags: Optional[str], relation: str) -> list[str]:
 
 @router.post("/recognize/person")
 @v1_router.post("/recognize/person")
-async def recognize_person(file: UploadFile = File(...), _: dict = Depends(verify_token)):
+def recognize_person(file: UploadFile = File(...), _: dict = Depends(verify_token)):
     temp_path = _make_temp_path(file.filename or "capture.jpg")
 
     try:
-        await _save_upload(file, temp_path)
+        _save_upload(file, temp_path)
 
         try:
             face_service = _face_service()
@@ -195,10 +195,12 @@ async def recognize_person(file: UploadFile = File(...), _: dict = Depends(verif
         matched_name = result["name"]
         confidence = result.get("confidence", 0.0)
 
-        # Search Qdrant by text to get the full person payload (notes, audio, etc.)
-        person_records = memory_service.search_by_text(matched_name)
-        if person_records:
-            payload = person_records[0].payload or {}
+        # Search Qdrant by exact person_id to get the full person payload (notes, audio, etc.)
+        # We don't use fuzzy search here because "Pranav Shirke" and "Pragati Shirke" 
+        # look too similar to the fuzzy matcher.
+        person_record = memory_service.get_person_by_id(matched_name)
+        if person_record:
+            payload = person_record.payload or {}
             _conversation_service().update_context(payload)
             return {
                 "status": "identified",
@@ -236,7 +238,7 @@ async def recognize_person(file: UploadFile = File(...), _: dict = Depends(verif
 
 @router.post("/remember/person")
 @v1_router.post("/remember/person")
-async def remember_person(
+def remember_person(
     name: str = Form(...),
     relation: str = Form("Acquaintance"),
     relation_tags: Optional[str] = Form(None),
@@ -250,7 +252,7 @@ async def remember_person(
     image_path = ENROLL_DIR / filename
 
     try:
-        await _save_upload(file, image_path)
+        _save_upload(file, image_path)
 
         try:
             face_service = _face_service()
@@ -265,7 +267,7 @@ async def remember_person(
                 image_path.unlink()
             return {"status": "error", "message": "No face detected in enrollment photo."}
 
-        audio_b64 = await _encode_audio_base64(audio_file, name.replace(" ", "_"))
+        audio_b64 = _encode_audio_base64(audio_file, name.replace(" ", "_"))
         image_b64 = _encode_image_base64(str(image_path))
         avatar_url = avatar_service.generate_avatar(str(image_path))
         parsed_relation_tags = _parse_relation_tags(relation_tags, relation)
@@ -310,7 +312,7 @@ async def remember_person(
 
 @router.post("/remember/patient")
 @v1_router.post("/remember/patient")
-async def remember_patient(
+def remember_patient(
     name: str = Form(...),
     relation: str = Form("Acquaintance"),
     relation_tags: Optional[str] = Form(None),
@@ -324,7 +326,7 @@ async def remember_patient(
     image_path = ENROLL_DIR / filename
 
     try:
-        await _save_upload(file, image_path)
+        _save_upload(file, image_path)
 
         try:
             face_service = _face_service()
@@ -339,7 +341,7 @@ async def remember_patient(
                 image_path.unlink()
             return {"status": "error", "message": "No face detected in enrollment photo."}
 
-        audio_b64 = await _encode_audio_base64(audio_file, name.replace(" ", "_"))
+        audio_b64 = _encode_audio_base64(audio_file, name.replace(" ", "_"))
         image_b64 = _encode_image_base64(str(image_path))
         avatar_url = avatar_service.generate_avatar(str(image_path))
         parsed_relation_tags = _parse_relation_tags(relation_tags, relation)
@@ -384,7 +386,7 @@ async def remember_patient(
 
 @router.post("/remember/object")
 @v1_router.post("/remember/object")
-async def remember_object(
+def remember_object(
     name: str = Form(...),
     notes: Optional[str] = Form(None),
     file: UploadFile = File(...),
@@ -393,7 +395,7 @@ async def remember_object(
     temp_path = _make_temp_path(file.filename or "object.jpg")
 
     try:
-        await _save_upload(file, temp_path)
+        _save_upload(file, temp_path)
 
         try:
             object_service = _object_service()
@@ -431,11 +433,11 @@ async def remember_object(
 
 @router.post("/find/object")
 @v1_router.post("/find/object")
-async def find_object(file: UploadFile = File(...), _: dict = Depends(verify_token)):
+def find_object(file: UploadFile = File(...), _: dict = Depends(verify_token)):
     temp_path = _make_temp_path(file.filename or "capture.jpg")
 
     try:
-        await _save_upload(file, temp_path)
+        _save_upload(file, temp_path)
 
         try:
             object_service = _object_service()
@@ -443,10 +445,36 @@ async def find_object(file: UploadFile = File(...), _: dict = Depends(verify_tok
         except Exception as exc:
             raise _dependency_error(exc)
 
-        # --- YOLO detection with strict confidence (conf=0.65) ---
-        # This is the PRIMARY detection method.  The strict threshold
-        # eliminates false positives like "bottle" on curtains.
+        # 1. First, search by visual embedding
+        embedding = object_service.generate_embedding(str(temp_path))
+        matches = memory_service.search_object(embedding)
+        
+        if matches and matches[0].score > 0.6:
+            best = matches[0]
+            enrolled_obj = best.payload or {}
+            
+            _conversation_service().update_context(enrolled_obj)
+            return {
+                "status": "identified",
+                "object": {
+                    "name": enrolled_obj.get("name", "Unknown"),
+                    "notes": enrolled_obj.get("notes", ""),
+                    "confidence": float(best.score),
+                    "location": enrolled_obj.get("location", "Unknown"),
+                    "image": enrolled_obj.get("image_base64"),
+                },
+            }
+
+        # 2. Fallback: YOLO detection with strict confidence (conf=0.65)
+        # This acts as a fallback for objects that YOLO natively knows
+        # and eliminates false positives.
         detections = object_service.detect_objects(str(temp_path))
+
+        # Filter out generic human-body YOLO classes — these are always
+        # redundant with face recognition and produce confusing HUD boxes
+        # like "DETECTED: PERSON (NOT ENROLLED)".
+        _IGNORED_YOLO_CLASSES = {"person"}
+        detections = [d for d in detections if d["object"].lower() not in _IGNORED_YOLO_CLASSES]
 
         if detections:
             best_detection = max(detections, key=lambda item: item["confidence"])
@@ -496,7 +524,7 @@ async def find_object(file: UploadFile = File(...), _: dict = Depends(verify_tok
 
 @router.post("/chat/query")
 @v1_router.post("/chat/query")
-async def chat_query(payload: AvatarChatRequest = Body(...), _: dict = Depends(verify_token)):
+def chat_query(payload: AvatarChatRequest = Body(...), _: dict = Depends(verify_token)):
     text = payload.text.strip()
     if not text:
         raise HTTPException(status_code=400, detail="Text query is required")
@@ -680,7 +708,7 @@ async def chat_query(payload: AvatarChatRequest = Body(...), _: dict = Depends(v
 
 @router.get("/enrollment/{patient_id}")
 @v1_router.get("/enrollment/{patient_id}")
-async def get_enrollment_records(patient_id: str, _: dict = Depends(verify_token)):
+def get_enrollment_records(patient_id: str, _: dict = Depends(verify_token)):
     """Get all enrolled people and objects from the unified avatar collections."""
     try:
         memory_service = _memory_service()

@@ -31,6 +31,7 @@ const nextConfig: NextConfig = {
     return config;
   },
   turbopack: {},
+  // Trigger reload
 };
 
 export default nextConfig;

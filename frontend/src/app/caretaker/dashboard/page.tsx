@@ -300,8 +300,16 @@ function DashboardContent() {
                {[
                  { label: 'Total Memories', value: totalMemories, textColor: 'text-slate-900' },
                  { label: 'This Week', value: `+${thisWeek}`, textColor: 'text-green-600' },
-                 { label: 'Longest Streak', value: `${longestStreak} days`, textColor: 'text-yellow-600' },
-                 { label: 'Adherence', value: `${overallAdherence}%`, textColor: 'text-indigo-600' }
+                 { label: 'Adherence', value: `${overallAdherence}%`, textColor: 'text-indigo-600' },
+                 { 
+                   label: 'Current Mood', 
+                   value: (() => {
+                     if (!moodDistribution || moodDistribution.length === 0) return 'Unknown';
+                     const max = moodDistribution.reduce((prev, current) => (prev.count > current.count) ? prev : current);
+                     return max.emotion.charAt(0).toUpperCase() + max.emotion.slice(1);
+                   })(), 
+                   textColor: 'text-pink-500' 
+                 }
                ].map((stat, i) => (
                  <motion.div 
                    key={stat.label}

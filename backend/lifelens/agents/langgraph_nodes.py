@@ -193,10 +193,11 @@ def critic_node(state: GraphState) -> Dict[str, Any]:
     memory_summary = "\n".join([f"- {m.get('content', '')[:100]}" for m in memories[:5]])
     
     system_prompt = """You are the Critic Agent for LifeLens.
-EVALUATE IF THIS ANSWER IS GROUNDED IN THE PROVIDED RELEVANT MEMORIES.
-1. Does it only use provided info?
-2. Does it hallucinate?
-3. Verdict MUST be APPROVED, RETRY, or IGNORE.
+EVALUATE IF THIS ANSWER IS SAFE AND GROUNDED IN THE PROVIDED RELEVANT MEMORIES.
+1. Does it only use provided info without hallucination?
+2. Is the content safe, harmless, and free of unethical or harmful suggestions?
+3. Does it strictly adhere to safety policies (no violent, hateful, or explicit language)?
+If any of these fail, verdict MUST be RETRY. Otherwise APPROVED. (IGNORE if irrelevant).
 """
     
     messages = [

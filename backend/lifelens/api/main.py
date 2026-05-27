@@ -35,6 +35,7 @@ from lifelens.avatar.collections import ensure_avatar_collections
 from lifelens.api.avatar_routes import router as avatar_router, v1_router as avatar_v1_router
 from qdrant_client.http import models
 from lifelens.utils.scheduler import nagging_loop
+from lifelens.utils.security import contains_prompt_injection, contains_profanity, check_image_nudity, validate_file_mime
 
 # Initialize App
 app = FastAPI(title="LifeLens API", description="Backend for React Frontend", version="2.0.0")
@@ -372,6 +373,9 @@ def create_memory(request: MemoryCreate, user: dict = Depends(verify_token)):
         client = get_client()
         from lifelens.ingestion.text_processor import process_text
 
+        if contains_profanity(request.content):
+            raise HTTPException(status_code=400, detail="Profanity detected in memory content.")
+
         data = process_text(request.content)
         data["patient_id"] = request.patient_id
         data["timestamp"] = int(time.time())
@@ -411,10 +415,18 @@ async def upload_image(
         client = get_client()
         from lifelens.ingestion.image_processor import process_image
 
+        content = await file.read()
+        if not validate_file_mime(content, ["image/jpeg", "image/png", "image/webp"]):
+            raise HTTPException(status_code=400, detail="Invalid image file format.")
+
         temp_filename = f"temp_{file.filename}"
         with open(temp_filename, "wb") as buffer:
-            content = await file.read()
             buffer.write(content)
+
+        if check_image_nudity(temp_filename):
+            if os.path.exists(temp_filename):
+                os.remove(temp_filename)
+            raise HTTPException(status_code=400, detail="Inappropriate image content detected.")
 
         try:
             with open(temp_filename, "rb") as f:
@@ -457,9 +469,12 @@ async def upload_audio(
     try:
         from lifelens.ingestion.audio_processor import process_audio
 
+        content = await file.read()
+        if not validate_file_mime(content, ["audio/mpeg", "audio/wav", "audio/ogg", "audio/webm", "audio/flac"]):
+            raise HTTPException(status_code=400, detail="Invalid audio file format.")
+
         temp_filename = f"temp_{file.filename}"
         with open(temp_filename, "wb") as buffer:
-            content = await file.read()
             buffer.write(content)
 
         try:
@@ -489,6 +504,11 @@ async def upload_audio(
 @app.post("/api/chat")
 def chat(request: ChatRequest, user: dict = Depends(verify_token)):
     """Main chat endpoint - wraps the multi-agent orchestrator."""
+    if contains_prompt_injection(request.question):
+        raise HTTPException(status_code=400, detail="Invalid prompt structure detected.")
+    if contains_profanity(request.question):
+        raise HTTPException(status_code=400, detail="Profanity detected in chat query.")
+        
     try:
         client = get_client()
 

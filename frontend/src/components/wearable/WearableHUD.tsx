@@ -91,12 +91,10 @@ export default function WearableHUD({ onClose, onCapture }: WearableHUDProps) {
           if (objRes) {
             if (objRes.status === 'identified' && objRes.object?.name) {
               updatedDetections.push({ id: 2, x: 5, y: 45, label: `OBJECT: ${objRes.object.name.toUpperCase()}` });
-            } else if ((objRes as any).detected_label) {
-              // YOLO detected something but it's not enrolled
-              const rawLabel = (objRes as any).detected_label as string;
-              updatedDetections.push({ id: 2, x: 5, y: 45, label: `DETECTED: ${rawLabel.toUpperCase()} (NOT ENROLLED)` });
             }
-            // Don't show anything for completely empty scans
+            // Unenrolled YOLO labels (like "person", "chair") are intentionally
+            // NOT shown on the HUD — they create confusing boxes alongside
+            // the face recognition results.
           }
 
           setDetections(updatedDetections);

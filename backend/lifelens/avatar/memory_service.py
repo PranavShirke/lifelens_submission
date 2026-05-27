@@ -134,15 +134,15 @@ class MemoryService:
                 notes = (p.payload.get("notes") or "").lower()
                 
                 score = 0
-                if name and name in query: score += 1.0
-                if relation and relation in query: score += 0.8
+                if name and (query in name or name in query): score += 1.0
+                if relation and (query in relation or relation in query): score += 0.8
                 if notes and query in notes: score += 0.5
                 
                 query_words = query.split()
                 for word in query_words:
                     if len(word) > 2:
                         matcher = difflib.SequenceMatcher(None, word, name)
-                        if matcher.ratio() > 0.7: score += 0.8
+                        if matcher.ratio() > 0.6: score += 0.8
                             
                 full_sim = difflib.SequenceMatcher(None, query, name).ratio()
                 if full_sim > 0.6: score += 1.0
@@ -161,5 +161,24 @@ class MemoryService:
         except Exception as e:
             print(f"Fuzzy search error: {e}")
             return []
+
+    def get_person_by_id(self, person_id: str):
+        """Perform an exact lookup by person_id instead of a fuzzy search."""
+        for col in [self.faces_collection, self.patients_collection]:
+            try:
+                res = self.client.scroll(
+                    collection_name=col,
+                    limit=500,
+                    with_payload=True,
+                    with_vectors=False
+                )
+                points = res[0] if isinstance(res, tuple) else res
+                for pt in points:
+                    if pt.payload and pt.payload.get("person_id") == person_id:
+                        return pt
+            except Exception as e:
+                print(f"Exception in get_person_by_id: {e}")
+                pass
+        return None
 
 memory_service = MemoryService()

@@ -59,8 +59,8 @@ def _get_deepface():
 # ---------------------------------------------------------------------------
 FACE_EMBED_SIZE = 512
 
-# DeepFace config — VGG-Face with opencv detector (fastest)
-_MODEL_NAME = "VGG-Face"
+# DeepFace config — Facenet512 (natively 512d embeddings, highly accurate)
+_MODEL_NAME = "Facenet512"
 _DETECTOR_BACKEND = "opencv"
 
 # Enrollment images directory (also saved to Qdrant for persistence)
