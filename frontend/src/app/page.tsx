@@ -286,11 +286,100 @@ function FeatCard({
 }
 
 /* ─────────────────────────────────────────────
+   SPLASH INTRO COMPONENT
+───────────────────────────────────────────── */
+function SplashIntro({ onComplete }: { onComplete: () => void }) {
+  const [stage, setStage] = useState<"image" | "video" | "fadeout">("image");
+
+  const handleEnterClick = () => {
+    if (stage === "image") {
+      setStage("video");
+      // The video plays for 6 seconds, then triggers fadeout
+      setTimeout(() => {
+        setStage("fadeout");
+        // Wait 1s for the CSS fadeout transition before unmounting
+        setTimeout(() => {
+          onComplete();
+        }, 1000);
+      }, 6000);
+    }
+  };
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 9999,
+        backgroundColor: "black",
+        opacity: stage === "fadeout" ? 0 : 1,
+        transition: "opacity 1s ease",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        overflow: "hidden",
+      }}
+    >
+      {stage === "image" && (
+        <>
+          <img
+            src="/splash_image.png"
+            alt="Welcome to LifeLens"
+            style={{ width: "100%", height: "100%", objectFit: "cover", position: "absolute", inset: 0 }}
+          />
+          <button
+            onClick={handleEnterClick}
+            style={{
+              position: "absolute",
+              bottom: "10%",
+              padding: "16px 48px",
+              fontSize: "18px",
+              fontWeight: 500,
+              background: "rgba(255,255,255,0.15)",
+              color: "white",
+              border: "1px solid rgba(255,255,255,0.4)",
+              borderRadius: "100px",
+              backdropFilter: "blur(12px)",
+              WebkitBackdropFilter: "blur(12px)",
+              cursor: "pointer",
+              transition: "all 0.3s",
+              letterSpacing: "0.1em",
+              textTransform: "uppercase"
+            }}
+            onMouseOver={(e) => {
+              e.currentTarget.style.background = "rgba(255,255,255,0.3)";
+              e.currentTarget.style.transform = "translateY(-2px)";
+            }}
+            onMouseOut={(e) => {
+              e.currentTarget.style.background = "rgba(255,255,255,0.15)";
+              e.currentTarget.style.transform = "translateY(0)";
+            }}
+          >
+            Enter
+          </button>
+        </>
+      )}
+
+      {(stage === "video" || stage === "fadeout") && (
+        <video
+          src="/splash_video.mp4"
+          autoPlay
+          muted
+          playsInline
+          style={{ width: "100%", height: "100%", objectFit: "cover", position: "absolute", inset: 0 }}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────
    MAIN LANDING PAGE
 ───────────────────────────────────────────── */
 export default function LandingPage() {
   useReveal();
   const [activeRole, setActiveRole] = useState(0);
+  const [showSplash, setShowSplash] = useState(true);
 
   const roles = [
     {
@@ -334,6 +423,7 @@ export default function LandingPage() {
 
   return (
     <>
+      {showSplash && <SplashIntro onComplete={() => setShowSplash(false)} />}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=DM+Sans:wght@300;400;500&display=swap');
 
