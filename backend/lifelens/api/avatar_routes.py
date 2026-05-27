@@ -20,11 +20,9 @@ router = APIRouter(prefix="/api/avatar", tags=["avatar"])
 v1_router = APIRouter(prefix="/api/v1", tags=["avatar"])
 
 TEMP_DIR = Path("temp_uploads")
-ENROLL_DIR = Path("photo/enrolled")
 AUDIO_DIR = Path("audio/enrolled")
 
 TEMP_DIR.mkdir(parents=True, exist_ok=True)
-ENROLL_DIR.mkdir(parents=True, exist_ok=True)
 AUDIO_DIR.mkdir(parents=True, exist_ok=True)
 
 
@@ -248,11 +246,10 @@ def remember_person(
     audio_file: Optional[UploadFile] = File(None),
     _: dict = Depends(verify_token),
 ):
-    filename = f"{name.replace(' ', '_')}_{uuid.uuid4()}.jpg"
-    image_path = ENROLL_DIR / filename
+    temp_path = _make_temp_path(f"{name.replace(' ', '_')}_{uuid.uuid4()}.jpg")
 
     try:
-        _save_upload(file, image_path)
+        _save_upload(file, temp_path)
 
         try:
             face_service = _face_service()
@@ -261,15 +258,13 @@ def remember_person(
         except Exception as exc:
             raise _dependency_error(exc)
 
-        embedding = face_service.generate_embedding(str(image_path))
+        embedding = face_service.generate_embedding(str(temp_path))
         if not embedding:
-            if image_path.exists():
-                image_path.unlink()
             return {"status": "error", "message": "No face detected in enrollment photo."}
 
         audio_b64 = _encode_audio_base64(audio_file, name.replace(" ", "_"))
-        image_b64 = _encode_image_base64(str(image_path))
-        avatar_url = avatar_service.generate_avatar(str(image_path))
+        image_b64 = _encode_image_base64(str(temp_path))
+        avatar_url = avatar_service.generate_avatar(str(temp_path))
         parsed_relation_tags = _parse_relation_tags(relation_tags, relation)
 
         metadata: Dict[str, Any] = {
@@ -293,7 +288,7 @@ def remember_person(
         )
 
         # Dual-write: also save to known_faces/ for DeepFace recognition
-        face_service.enroll_face_image(name, str(image_path))
+        face_service.enroll_face_image(name, str(temp_path))
 
         try:
             _semantic_memory_service().learn_person(metadata)
@@ -305,9 +300,10 @@ def remember_person(
     except HTTPException:
         raise
     except Exception as exc:
-        if image_path.exists():
-            image_path.unlink()
         raise HTTPException(status_code=500, detail=f"Person enrollment failed: {exc}") from exc
+    finally:
+        if temp_path.exists():
+            temp_path.unlink()
 
 
 @router.post("/remember/patient")
@@ -322,11 +318,10 @@ def remember_patient(
     audio_file: Optional[UploadFile] = File(None),
     _: dict = Depends(verify_token),
 ):
-    filename = f"{name.replace(' ', '_')}_{uuid.uuid4()}.jpg"
-    image_path = ENROLL_DIR / filename
+    temp_path = _make_temp_path(f"{name.replace(' ', '_')}_{uuid.uuid4()}.jpg")
 
     try:
-        _save_upload(file, image_path)
+        _save_upload(file, temp_path)
 
         try:
             face_service = _face_service()
@@ -335,15 +330,13 @@ def remember_patient(
         except Exception as exc:
             raise _dependency_error(exc)
 
-        embedding = face_service.generate_embedding(str(image_path))
+        embedding = face_service.generate_embedding(str(temp_path))
         if not embedding:
-            if image_path.exists():
-                image_path.unlink()
             return {"status": "error", "message": "No face detected in enrollment photo."}
 
         audio_b64 = _encode_audio_base64(audio_file, name.replace(" ", "_"))
-        image_b64 = _encode_image_base64(str(image_path))
-        avatar_url = avatar_service.generate_avatar(str(image_path))
+        image_b64 = _encode_image_base64(str(temp_path))
+        avatar_url = avatar_service.generate_avatar(str(temp_path))
         parsed_relation_tags = _parse_relation_tags(relation_tags, relation)
 
         metadata: Dict[str, Any] = {
@@ -367,7 +360,7 @@ def remember_patient(
         )
 
         # Dual-write: also save to known_faces/ for DeepFace recognition
-        face_service.enroll_face_image(name, str(image_path))
+        face_service.enroll_face_image(name, str(temp_path))
 
         try:
             _semantic_memory_service().learn_person(metadata)
@@ -379,9 +372,10 @@ def remember_patient(
     except HTTPException:
         raise
     except Exception as exc:
-        if image_path.exists():
-            image_path.unlink()
         raise HTTPException(status_code=500, detail=f"Patient enrollment failed: {exc}") from exc
+    finally:
+        if temp_path.exists():
+            temp_path.unlink()
 
 
 @router.post("/remember/object")
