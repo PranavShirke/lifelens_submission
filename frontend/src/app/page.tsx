@@ -291,19 +291,24 @@ function FeatCard({
 function SplashIntro({ onComplete }: { onComplete: () => void }) {
   const [stage, setStage] = useState<"image" | "video" | "fadeout">("image");
 
-  const handleEnterClick = () => {
-    if (stage === "image") {
-      setStage("video");
-      // The video plays for 6 seconds, then triggers fadeout
-      setTimeout(() => {
-        setStage("fadeout");
-        // Wait 1s for the CSS fadeout transition before unmounting
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Enter" && stage === "image") {
+        setStage("video");
+        // The video plays for 7 seconds, then triggers fadeout
         setTimeout(() => {
-          onComplete();
-        }, 1000);
-      }, 6000);
-    }
-  };
+          setStage("fadeout");
+          // Wait 1s for the CSS fadeout transition before unmounting
+          setTimeout(() => {
+            onComplete();
+          }, 1000);
+        }, 7000);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [stage, onComplete]);
 
   return (
     <div
@@ -321,50 +326,17 @@ function SplashIntro({ onComplete }: { onComplete: () => void }) {
       }}
     >
       {stage === "image" && (
-        <>
-          <img
-            src="/splash_image.png"
-            alt="Welcome to LifeLens"
-            style={{ width: "100%", height: "100%", objectFit: "cover", position: "absolute", inset: 0 }}
-          />
-          <button
-            onClick={handleEnterClick}
-            style={{
-              position: "absolute",
-              bottom: "10%",
-              padding: "16px 48px",
-              fontSize: "18px",
-              fontWeight: 500,
-              background: "rgba(255,255,255,0.15)",
-              color: "white",
-              border: "1px solid rgba(255,255,255,0.4)",
-              borderRadius: "100px",
-              backdropFilter: "blur(12px)",
-              WebkitBackdropFilter: "blur(12px)",
-              cursor: "pointer",
-              transition: "all 0.3s",
-              letterSpacing: "0.1em",
-              textTransform: "uppercase"
-            }}
-            onMouseOver={(e) => {
-              e.currentTarget.style.background = "rgba(255,255,255,0.3)";
-              e.currentTarget.style.transform = "translateY(-2px)";
-            }}
-            onMouseOut={(e) => {
-              e.currentTarget.style.background = "rgba(255,255,255,0.15)";
-              e.currentTarget.style.transform = "translateY(0)";
-            }}
-          >
-            Enter
-          </button>
-        </>
+        <img
+          src="/splash_image.png"
+          alt="Welcome to LifeLens"
+          style={{ width: "100%", height: "100%", objectFit: "cover", position: "absolute", inset: 0 }}
+        />
       )}
 
       {(stage === "video" || stage === "fadeout") && (
         <video
           src="/splash_video.mp4"
           autoPlay
-          muted
           playsInline
           style={{ width: "100%", height: "100%", objectFit: "cover", position: "absolute", inset: 0 }}
         />
@@ -373,13 +345,20 @@ function SplashIntro({ onComplete }: { onComplete: () => void }) {
   );
 }
 
+let hasSeenSplashThisLoad = false;
+
 /* ─────────────────────────────────────────────
    MAIN LANDING PAGE
 ───────────────────────────────────────────── */
 export default function LandingPage() {
   useReveal();
   const [activeRole, setActiveRole] = useState(0);
-  const [showSplash, setShowSplash] = useState(true);
+  const [showSplash, setShowSplash] = useState(!hasSeenSplashThisLoad);
+  const [popupImage, setPopupImage] = useState<string | null>(null);
+
+  useEffect(() => {
+    hasSeenSplashThisLoad = true;
+  }, []);
 
   const roles = [
     {
@@ -424,6 +403,25 @@ export default function LandingPage() {
   return (
     <>
       {showSplash && <SplashIntro onComplete={() => setShowSplash(false)} />}
+      
+      {popupImage && (
+        <div 
+          onClick={() => setPopupImage(null)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 10000,
+            backgroundColor: 'rgba(0,0,0,0.4)',
+            backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer'
+          }}
+        >
+          <img 
+            src={popupImage} 
+            alt="Presentation" 
+            style={{ maxWidth: '90%', maxHeight: '90%', borderRadius: '16px', boxShadow: '0 20px 40px rgba(0,0,0,0.3)' }}
+          />
+        </div>
+      )}
+
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=DM+Sans:wght@300;400;500&display=swap');
 
@@ -813,7 +811,7 @@ export default function LandingPage() {
           padding: 56px 60px 36px;
         }
         .footer-grid {
-          display: grid; grid-template-columns: 1.6fr repeat(3,1fr);
+          display: grid; grid-template-columns: 1.6fr repeat(4,1fr);
           gap: 48px; margin-bottom: 48px;
         }
         .footer-brand-name {
@@ -827,12 +825,12 @@ export default function LandingPage() {
           text-transform: uppercase; color: rgba(255,255,255,0.35);
           margin-bottom: 16px;
         }
-        .footer-col a {
+        .footer-col a, .footer-col button {
           display: block; font-size: 13px; color: rgba(255,255,255,0.5);
           text-decoration: none; margin-bottom: 10px; font-weight: 300;
-          transition: color 0.2s;
+          transition: color 0.2s; background: none; border: none; cursor: pointer; text-align: left; padding: 0; font-family: inherit;
         }
-        .footer-col a:hover { color: white; }
+        .footer-col a:hover, .footer-col button:hover { color: white; }
         .footer-bottom {
           border-top: 1px solid rgba(255,255,255,0.07);
           padding-top: 24px;
@@ -908,7 +906,31 @@ export default function LandingPage() {
           preserving what matters most, one memory at a time.
         </p>
         <div className="hero-actions">
-          <a href="/login" className="btn-primary">Begin the journey</a>
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+            <button 
+              onClick={() => setPopupImage('/intro_ppt.png')}
+              style={{ 
+                padding: '0', borderRadius: '50%', width: '32px', height: '32px', 
+                display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                fontSize: '14px', fontWeight: 500, fontFamily: 'sans-serif',
+                background: 'rgba(30, 27, 46, 0.05)', color: 'var(--text-mid)',
+                border: '1px solid rgba(30, 27, 46, 0.1)', cursor: 'pointer',
+                transition: 'all 0.2s'
+              }}
+              onMouseOver={(e) => {
+                e.currentTarget.style.background = 'rgba(30, 27, 46, 0.1)';
+                e.currentTarget.style.color = 'var(--text-dark)';
+              }}
+              onMouseOut={(e) => {
+                e.currentTarget.style.background = 'rgba(30, 27, 46, 0.05)';
+                e.currentTarget.style.color = 'var(--text-mid)';
+              }}
+              title="View Project Intro"
+            >
+              ?
+            </button>
+            <a href="/login" className="btn-primary">Begin the journey</a>
+          </div>
           <a href="#how" className="btn-ghost">
             See how it works
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -1131,6 +1153,11 @@ export default function LandingPage() {
               {col.links.map((l) => <a key={l} href="#">{l}</a>)}
             </div>
           ))}
+          <div className="footer-col">
+            <h5>Project Details</h5>
+            <button onClick={() => setPopupImage('/6.png')}>Business Model</button>
+            <button onClick={() => setPopupImage('/7.png')}>Accessibility</button>
+          </div>
         </div>
         <div className="footer-bottom">
           <span>© 2025 LifeLens. Built for AMD slingshot</span>

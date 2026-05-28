@@ -217,48 +217,45 @@ function PatientHomeContent() {
     <motion.div variants={stagger} initial="hidden" animate="show" className="pb-10 space-y-6">
 
       {/* ─── ROW 1: Welcome + Quick Stats ─── */}
-      <div className="grid grid-cols-12 gap-5">
-        {/* Greeting */}
-        <motion.div variants={fadeUp} className="col-span-12 lg:col-span-5">
-          <div className="card h-full p-7 shadow-lg flex flex-row items-center gap-5 relative overflow-hidden">
-            <div className="absolute -top-16 -right-16 w-48 h-48 bg-gradient-to-bl from-[#FFC299]/30 to-transparent rounded-full blur-3xl pointer-events-none" />
-            <div className="absolute bottom-0 left-0 w-32 h-32 bg-gradient-to-tr from-[#B5CEB5]/20 to-transparent rounded-full blur-2xl pointer-events-none" />
+      <motion.div variants={fadeUp} className="w-full">
+        <div className="card w-full p-6 lg:p-8 shadow-lg flex flex-col lg:flex-row items-center justify-between gap-6 relative overflow-hidden">
+          <div className="absolute -top-16 -right-16 w-64 h-64 bg-gradient-to-bl from-[#FFC299]/30 to-transparent rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr from-[#B5CEB5]/20 to-transparent rounded-full blur-2xl pointer-events-none" />
+          
+          <div className="flex items-center gap-5 relative z-10 w-full lg:w-auto">
             <motion.img whileHover={{ scale: 1.08, rotate: -3 }} src={`https://api.dicebear.com/7.x/notionists/svg?seed=${firstName}`} alt="avatar" className="w-16 h-16 rounded-2xl bg-[#FFF5E6] shadow-md ring-4 ring-white flex-shrink-0 object-cover" />
-            <div className="relative z-10 min-w-0">
-              <h1 className="text-2xl font-black tracking-tight text-[#1E1B2E]">{getGreeting()}, {firstName} 👋</h1>
+            <div className="min-w-0">
+              <h1 className="text-2xl font-black tracking-tight text-[#1E1B2E] truncate">{getGreeting()}, {firstName} 👋</h1>
               <p className="text-xs font-semibold text-[#9896B0] mt-1 uppercase tracking-wider">{todayStr}</p>
             </div>
           </div>
-        </motion.div>
 
-        {/* Quick Stat Cards */}
-        {[
-          { label: 'Memories', value: memories.length.toString(), icon: Heart, color: 'text-[#FF8C42]', bg: 'bg-[#FFF5E6]', href: '/memory-lane' },
-          { label: 'Adherence', value: `${adherence}%`, icon: Pill, color: 'text-[#7A9E7A]', bg: 'bg-[#EAF2E9]' },
-          { label: 'Mood', value: 'Positive', icon: TrendingUp, color: 'text-[#C9A96E]', bg: 'bg-[#FDF8EE]' },
-        ].map((s, i) => (
-          <motion.div key={s.label} variants={fadeUp} className="col-span-12 sm:col-span-4 lg:col-span-2 xl:col-span-2">
-            {s.href ? (
-              <Link href={s.href} className="card h-full p-5 cursor-pointer group hover:-translate-y-1 transition-all block">
-                <StatContent s={s} adherence={adherence} />
-              </Link>
-            ) : (
-              <div className="card h-full p-5 cursor-default group hover:-translate-y-1 transition-all">
-                <StatContent s={s} adherence={adherence} />
-              </div>
-            )}
-          </motion.div>
-        ))}
+          <div className="flex flex-row items-center gap-3 lg:gap-4 relative z-10 w-full lg:w-auto overflow-x-auto pb-2 lg:pb-0">
+            {[
+              { label: 'Memories', value: memories.length.toString(), icon: Heart, color: 'text-[#FF8C42]', bg: 'bg-[#FFF5E6]', href: '/memory-lane' },
+              { label: 'Adherence', value: `${adherence}%`, icon: Pill, color: 'text-[#7A9E7A]', bg: 'bg-[#EAF2E9]' },
+              { label: 'Mood', value: 'Positive', icon: TrendingUp, color: 'text-[#C9A96E]', bg: 'bg-[#FDF8EE]' },
+            ].map((s, i) => {
+              const InnerContent = (
+                <>
+                  <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shrink-0 mb-2", s.bg)}>
+                    <s.icon className={cn("w-5 h-5", s.color)} />
+                  </div>
+                  <p className="text-lg font-black tracking-tight text-[#1E1B2E] leading-none">{s.value}</p>
+                  <p className="text-[9px] font-extrabold text-[#9896B0] uppercase tracking-widest mt-1">{s.label}</p>
+                </>
+              );
 
-        {/* AI Flash Insight */}
-        <motion.div variants={fadeUp} className="col-span-12 lg:col-span-1 xl:col-span-1 hidden lg:block">
-          <div className="card h-full shadow-lg flex flex-col items-center justify-center p-3 relative overflow-hidden group cursor-pointer" style={{ background: 'linear-gradient(135deg, #1E1B2E, #2A2640)' }}>
-            <div className="absolute inset-0 bg-gradient-to-b from-[#FF8C42]/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-            <Zap className="w-5 h-5 text-[#FFC299] relative z-10" fill="currentColor" />
-            <span className="text-[9px] font-black uppercase tracking-widest mt-2 relative z-10 text-center leading-tight text-white/80">AI<br />Tip</span>
+              const className = "bg-white/60 hover:bg-white backdrop-blur-md border border-white/80 rounded-[16px] p-4 flex flex-col items-center justify-center text-center shadow-sm w-[100px] h-[100px] shrink-0 transition-all hover:-translate-y-1 hover:shadow-md cursor-pointer group";
+
+              if (s.href) {
+                return <Link key={s.label} href={s.href} className={className}>{InnerContent}</Link>;
+              }
+              return <div key={s.label} className={className}>{InnerContent}</div>;
+            })}
           </div>
-        </motion.div>
-      </div>
+        </div>
+      </motion.div>
 
       {/* ─── ROW 2: Main Workspace + Sidebar ─── */}
       <div className="grid grid-cols-12 gap-5">
