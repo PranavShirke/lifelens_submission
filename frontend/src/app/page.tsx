@@ -944,6 +944,22 @@ export default function LandingPage() {
           </a>
         </div>
 
+        <div style={{
+          background: 'rgba(255, 140, 66, 0.1)',
+          border: '1px solid rgba(255, 140, 66, 0.3)',
+          borderRadius: '12px',
+          padding: '16px 24px',
+          maxWidth: '680px',
+          margin: '0 auto 60px',
+          textAlign: 'center',
+          fontSize: '13px',
+          color: 'var(--text-mid)',
+          lineHeight: '1.6',
+          animation: 'fadeUp 0.9s 0.4s ease both'
+        }}>
+          <strong>Disclaimer:</strong> The backend is hosted on Render's free tier. You may experience initial delays due to server cold starts. Additionally, memory-intensive features like face/object recognition and image uploads for memories may not function correctly due to the free tier's severe memory limitations.
+        </div>
+
         {/* Floating memory cards */}
         <div className="hero-cards">
           <MemCard icon="🌸" type="Image Memory" title="Garden walk with Anna" meta="Yesterday · Mumbai · 😊 Happy" accentColor="#FF8C42" barWidth={82} />

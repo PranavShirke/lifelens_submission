@@ -18,7 +18,7 @@ const nextConfig: NextConfig = {
     return [
       {
         source: '/api/:path*',
-        destination: 'http://localhost:8000/api/:path*',
+        destination: 'https://lifelens-backend-host.onrender.com/api/:path*',
       },
     ];
   },
