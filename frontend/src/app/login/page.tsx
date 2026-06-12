@@ -291,7 +291,7 @@ export default function LoginPage() {
           
           {/* Minimalist footer links */}
           <div className="flex items-center justify-center gap-5 mt-5">
-            <button onClick={() => router.push('/')} className="text-[11px] text-[#9896B0] hover:text-[#FF8C42] transition-colors">
+            <button onClick={() => router.push('/?skipIntro=true')} className="text-[11px] text-[#9896B0] hover:text-[#FF8C42] transition-colors">
               Return to Website
             </button>
             <span className="text-[#9896B0]/30">•</span>

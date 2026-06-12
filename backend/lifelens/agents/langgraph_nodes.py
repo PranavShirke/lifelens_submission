@@ -127,7 +127,7 @@ def retriever_node(state: GraphState) -> Dict[str, Any]:
             client=client,
             query=query,
             filters=filters,
-            top_k=5,
+            top_k=10,
             patient_id=state["patient_id"]
         )
         
@@ -166,22 +166,23 @@ def retriever_node(state: GraphState) -> Dict[str, Any]:
 def executor_node(state: GraphState) -> Dict[str, Any]:
     """LangGraph node to generate answer based on retrieved memories."""
     logger.info("--- EXECUTOR NODE ---")
-    memories = state.get("retrieved_memories", [])
-    query = state["user_query"]
-    plan = state["plan"]
+    memories = state.get("retrieved_memories") or []
+    query = state.get("user_query", "")
+    plan = state.get("plan") or {}
     
     answer = _generate_answer(query, memories, {"retrieve": plan.get("needs_retrieval", True)})
-    return {"answer": answer}
+    return {"answer": answer or "I couldn't generate a response. Please try again."}
 
 
 def critic_node(state: GraphState) -> Dict[str, Any]:
     """LangGraph node to validate response groundedness."""
     logger.info("--- CRITIC NODE ---")
-    answer = state.get("answer", "")
-    memories = state.get("retrieved_memories", [])
-    query = state["user_query"]
+    answer = state.get("answer") or ""
+    memories = state.get("retrieved_memories") or []
+    query = state.get("user_query", "")
+    plan = state.get("plan") or {}
     
-    if not memories and state["plan"].get("needs_retrieval", True):
+    if not memories and plan.get("needs_retrieval", True):
         # Empty retrieval
         if any(phrase in answer.lower() for phrase in ["don't have", "no memories", "couldn't find"]):
             return {"critic_verdict": "APPROVED", "critic_reasoning": "Acknowledged lack of data correctly"}
@@ -190,7 +191,7 @@ def critic_node(state: GraphState) -> Dict[str, Any]:
     llm = init_llm(temperature=0.1)
     structured_llm = llm.with_structured_output(CriticOutput)
     
-    memory_summary = "\n".join([f"- {m.get('content', '')[:100]}" for m in memories[:5]])
+    memory_summary = "\n".join([f"- {(m.get('content') or '')[:100]}" for m in memories[:5]])
     
     system_prompt = """You are the Critic Agent for LifeLens.
 EVALUATE IF THIS ANSWER IS SAFE AND GROUNDED IN THE PROVIDED RELEVANT MEMORIES.
@@ -206,7 +207,10 @@ If any of these fail, verdict MUST be RETRY. Otherwise APPROVED. (IGNORE if irre
     ]
     
     try:
-        eval_result: CriticOutput = structured_llm.invoke(messages)
+        eval_result = structured_llm.invoke(messages)
+        if eval_result is None:
+            logger.warning("Critic LLM returned None, falling back to APPROVED")
+            return {"critic_verdict": "APPROVED", "critic_reasoning": "Fallback approval - LLM returned no structured output"}
         return {
             "critic_verdict": eval_result.verdict,
             "critic_reasoning": eval_result.reason

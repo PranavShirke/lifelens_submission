@@ -4,10 +4,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import AppShell from '@/components/shell/AppShell';
 import RoleGuard from '@/components/auth/RoleGuard';
 import AvatarStage from '@/components/avatar/AvatarStage';
-import AvatarChatPanel, { type AvatarUiMessage } from '@/components/avatar/AvatarChatPanel';
+import AvatarChatPanel, { type AvatarUiMessage, parseDementiaResponse } from '@/components/avatar/AvatarChatPanel';
 import AvatarCameraModal from '@/components/avatar/AvatarCameraModal';
 import AvatarEnrollmentForm from '@/components/avatar/AvatarEnrollmentForm';
 import { useUIStore } from '@/lib/store/ui-store';
+import { useSessionStore } from '@/lib/store/session-store';
+import { askLifeLens } from '@/lib/api/memories';
 import {
   findObject,
   queryAvatar,
@@ -37,7 +39,8 @@ export default function AvatarAssistantPage() {
 }
 
 function AvatarAssistantScreen() {
-  const { addToast } = useUIStore();
+  const { addToast, agenticMode } = useUIStore();
+  const { activePatientId, user } = useSessionStore();
 
   const [mode, setMode] = useState<'person' | 'object'>('person');
   const [messages, setMessages] = useState<AvatarUiMessage[]>([
@@ -68,28 +71,82 @@ function AvatarAssistantScreen() {
 
   const audioObjectUrlsRef = useRef<string[]>([]);
 
-  const speakResponse = useCallback((text: string) => {
+  const [speakingId, setSpeakingId] = useState<string | null>(null);
+
+function cleanTextForSpeech(text: string): string {
+  if (!text) return '';
+  return text
+    // 1. Remove markdown bolding asterisks, hashes, underscores, backticks
+    .replace(/\*\*+/g, '')       // bold asterisks
+    .replace(/\*/g, '')          // single asterisks
+    .replace(/#+/g, '')          // header hashes
+    .replace(/_+/g, '')          // underscores
+    .replace(/`+/g, '')          // backticks
+    .replace(/^\s*[\-\+\*]\s+/gm, '') // list markers at start of lines
+    // 2. Remove standard labels/keys for more natural, human-like voice synthesis
+    .replace(/when:|where:|who:|what happened:/gi, '')
+    // 3. Remove all emojis (standard and extended Unicode ranges)
+    .replace(/[\u{1F300}-\u{1F9FF}]|[\u{1F600}-\u{1F64F}]|[\u{1F680}-\u{1F6FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]|[\u{1F000}-\u{1FFFF}]|[\u{2B50}]|[\u{2B06}]|[\u{2190}-\u{21FF}]|[\u{2300}-\u{25FF}]/gu, '')
+    // 4. Collapse multiple spaces / periods / empty lines
+    .replace(/\s+/g, ' ')
+    .replace(/\.+/g, '.')
+    .trim();
+}
+
+  const speakResponse = useCallback((text: string, msgId: string = 'avatar-speak') => {
     if (typeof window === 'undefined' || !window.speechSynthesis || !text.trim()) {
+      return;
+    }
+
+    if (speakingId === msgId && msgId !== 'avatar-speak') {
+      window.speechSynthesis.cancel();
+      setSpeakingId(null);
       return;
     }
 
     window.speechSynthesis.cancel();
 
-    const utterance = new SpeechSynthesisUtterance(text);
+    // Parse structured dementia response if applicable
+    const parsed = parseDementiaResponse(text);
+    let rawSpokenText = text;
+    if (parsed.isStructured) {
+      const detailsText = parsed.details.join('. ');
+      rawSpokenText = `${parsed.summary}. ${detailsText}. ${parsed.reflection}`;
+    }
+
+    // Clean up Markdown and special markers from text for clean speech synthesis
+    const cleanText = cleanTextForSpeech(rawSpokenText);
+
+    const utterance = new SpeechSynthesisUtterance(cleanText);
     utterance.onstart = () => {
       setIsSpeaking(true);
-      setAvatarUtterance(text);
+      setSpeakingId(msgId);
+      setAvatarUtterance(cleanText);
     };
     utterance.onend = () => {
       setIsSpeaking(false);
+      setSpeakingId(null);
       setAvatarUtterance(null);
     };
     utterance.onerror = () => {
       setIsSpeaking(false);
+      setSpeakingId(null);
       setAvatarUtterance(null);
     };
 
+    utterance.rate = 0.82; // Slower paced for dementia patient accessibility
+    utterance.pitch = 1.05; // Slightly warmer/friendly pitch
+
     window.speechSynthesis.speak(utterance);
+  }, [speakingId]);
+
+  const handleStopSpeaking = useCallback(() => {
+    if (typeof window !== 'undefined' && window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+    }
+    setIsSpeaking(false);
+    setSpeakingId(null);
+    setAvatarUtterance(null);
   }, []);
 
   const appendMessage = useCallback((message: AvatarUiMessage) => {
@@ -128,32 +185,29 @@ function AvatarAssistantScreen() {
 
         const answer = response.text || "I couldn't find that in memory.";
         const audioUrl = toAudioUrl(response.audio_base64);
-        const image = response.image_base64 || undefined;
         const gallery = response.gallery || [];
+        const image = response.image_base64 || undefined;
 
+        const assistantMsgId = `assistant-${Date.now()}`;
         appendMessage({
-          id: `assistant-${Date.now()}`,
+          id: assistantMsgId,
           role: 'assistant',
           text: answer,
-          audioUrl,
-          image,
-          gallery,
+          gallery: gallery as string[],
+          image: image,
+          audioUrl: audioUrl,
         });
 
-        if (response.person && typeof response.person.name === 'string') {
-          const personName = response.person.name;
-          setCurrentPerson({
-            name: personName,
-            relation: typeof response.person.relation === 'string' ? response.person.relation : undefined,
-          });
+        if (response.person) {
+          setCurrentPerson(response.person as any);
           setSuggestions([
-            `Who is ${personName}?`,
-            `How does ${personName} talk?`,
-            `Any notes on ${personName}?`,
+            `Who is ${response.person.name}?`,
+            `How does ${response.person.name} talk?`,
+            `Any notes on ${response.person.name}?`,
           ]);
         }
 
-        speakResponse(answer);
+        speakResponse(answer, assistantMsgId);
       } catch {
         const fallback = 'I had trouble reaching the assistant service. Please try again.';
         appendMessage({ id: `assistant-${Date.now()}`, role: 'assistant', text: fallback });
@@ -415,7 +469,7 @@ function AvatarAssistantScreen() {
 
   return (
     <div className="h-full overflow-hidden">
-      <div className="grid h-full grid-cols-1 grid-rows-[minmax(280px,42vh)_1fr] lg:grid-cols-[minmax(360px,0.95fr)_minmax(420px,1.05fr)] lg:grid-rows-1">
+      <div className="grid h-full grid-cols-1 grid-rows-[minmax(200px,32vh)_1fr] lg:grid-cols-[minmax(360px,0.95fr)_minmax(420px,1.05fr)] lg:grid-rows-1">
         <AvatarStage
           isSpeaking={isSpeaking}
           isProcessing={isProcessing}
@@ -424,6 +478,7 @@ function AvatarAssistantScreen() {
           runtimeReady={runtimeReady}
           runtimeError={runtimeError}
           mode={mode}
+          onStopSpeaking={handleStopSpeaking}
         />
 
         <div className="h-full overflow-hidden rounded-none bg-white md:rounded-l-[24px]">
@@ -466,6 +521,8 @@ function AvatarAssistantScreen() {
                   addToast({ type: 'warning', message: 'Unable to play audio sample.' });
                 });
               }}
+              speakingId={speakingId}
+              onSpeakResponse={speakResponse}
             />
           )}
         </div>

@@ -345,19 +345,24 @@ function SplashIntro({ onComplete }: { onComplete: () => void }) {
   );
 }
 
-let hasSeenSplashThisLoad = false;
-
 /* ─────────────────────────────────────────────
    MAIN LANDING PAGE
 ───────────────────────────────────────────── */
 export default function LandingPage() {
   useReveal();
   const [activeRole, setActiveRole] = useState(0);
-  const [showSplash, setShowSplash] = useState(!hasSeenSplashThisLoad);
+  const [showSplash, setShowSplash] = useState(false);
   const [popupImage, setPopupImage] = useState<string | null>(null);
 
   useEffect(() => {
-    hasSeenSplashThisLoad = true;
+    if (typeof window !== 'undefined') {
+      const skipIntro = new URLSearchParams(window.location.search).get('skipIntro');
+      if (skipIntro === 'true') {
+        setShowSplash(false);
+      } else {
+        setShowSplash(true);
+      }
+    }
   }, []);
 
   const roles = [

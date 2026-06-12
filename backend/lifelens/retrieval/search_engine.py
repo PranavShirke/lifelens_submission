@@ -233,8 +233,8 @@ def search_memories(client: QdrantClient, query: str, filters: dict = None, top_
         d_rank = dense_ranks[hit.id]
         s_rank = sparse_ranks[hit.id]
         
-        # Mathematical RRF formula
-        rrf_score = (1.0 / (60 + d_rank)) + (1.0 / (60 + s_rank))
+        # Mathematical RRF formula — weight keyword matches more heavily
+        rrf_score = (1.0 / (60 + d_rank)) + (1.5 / (60 + s_rank))
         
         result = {
             "id": hit.id,
@@ -322,16 +322,19 @@ def _llm_rerank(query: str, candidates: list, top_k: int) -> list:
 def _extract_keywords(query: str) -> List[str]:
     """
     Extract important keywords from query for hybrid search.
-    Ignores common stop words.
+    Ignores common stop words but keeps activity/noun terms.
     """
     stop_words = {
         'tell', 'me', 'about', 'what', 'when', 'where', 'who', 'how', 'show',
         'find', 'from', 'my', 'memories', 'the', 'a', 'an', 'and', 'or', 'but',
         'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'is', 'are', 'was',
-        'were', 'be', 'been', 'have', 'has', 'had', 'do', 'does', 'did'
+        'were', 'be', 'been', 'have', 'has', 'had', 'do', 'does', 'did',
+        'i', 'it', 'its', 'that', 'this', 'there', 'can', 'could', 'would',
+        'should', 'will', 'shall', 'may', 'might', 'not', 'no', 'so', 'if',
+        'then', 'than', 'just', 'also', 'any', 'all', 'some', 'very',
     }
     
     words = query.split()
-    keywords = [word for word in words if word.lower() not in stop_words and len(word) > 2]
+    keywords = [word.strip('?,!.') for word in words if word.lower().strip('?,!.') not in stop_words and len(word.strip('?,!.')) > 1]
     
     return keywords

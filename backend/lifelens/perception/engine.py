@@ -401,7 +401,7 @@ class HUDRenderer:
 
         status = (
             f"LifeLens Perception  |  FPS: {fps:.1f}  |  "
-            f"Faces: {face_count}  |  Objects: {obj_count}"
+            f"Faces: {face_count}  |  Objects: {obj_count}  |  'c': Switch Cam"
         )
         cv2.putText(
             frame, status, (10, 25),
@@ -528,10 +528,21 @@ class PerceptionEngine:
                 # Display
                 cv2.imshow(self._config.window_name, annotated)
 
-                # Graceful exit: 'q' key
-                if cv2.waitKey(1) & 0xFF == ord("q"):
+                # Key controls: 'q' key to quit, 'c' key to switch camera
+                key = cv2.waitKey(1) & 0xFF
+                if key == ord("q"):
                     logger.info("User pressed 'q' — shutting down.")
                     break
+                elif key == ord("c"):
+                    new_index = 1 if self._config.camera_index == 0 else 0
+                    logger.info(f"Dynamically toggling camera source index from {self._config.camera_index} to {new_index}...")
+                    self._cap.release()
+                    self._cap = cv2.VideoCapture(new_index)
+                    if not self._cap.isOpened():
+                        logger.error(f"Failed to open camera on index {new_index}. Reverting back to original device index {self._config.camera_index}.")
+                        self._cap = cv2.VideoCapture(self._config.camera_index)
+                    else:
+                        self._config.camera_index = new_index
 
         except KeyboardInterrupt:
             logger.info("KeyboardInterrupt — shutting down.")

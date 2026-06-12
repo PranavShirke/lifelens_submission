@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Search, Bell, ChevronDown, X, Menu } from 'lucide-react';
+import { Bell, ChevronDown, X, Menu } from 'lucide-react';
 import { useSessionStore } from '@/lib/store/session-store';
 import { useUIStore } from '@/lib/store/ui-store';
 import { cn } from '@/lib/utils';
@@ -9,7 +9,6 @@ import { cn } from '@/lib/utils';
 export default function TopBar() {
   const { user } = useSessionStore();
   const { toggleSidebar } = useUIStore();
-  const [searchQuery, setSearchQuery] = useState('');
   const [showNotifications, setShowNotifications] = useState(false);
 
   return (
@@ -20,30 +19,9 @@ export default function TopBar() {
           <Menu className="w-6 h-6" />
         </button>
 
-        {/* Search */}
-        <div className="flex-1 max-w-2xl min-w-0">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#9896B0]" />
-            <input
-              type="text"
-              placeholder="Search memories, medications, alerts..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-[#fffdf8] border-2 border-[#1E1B2E] shadow-[4px_4px_0_#1E1B2E] focus:ring-2 focus:ring-[#FF8C42]/30 rounded-[12px] pl-10 pr-4 py-2.5 outline-none text-sm transition-all text-[#1E1B2E] font-medium placeholder:text-[#9896B0]"
-            />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2"
-              >
-                <X className="w-4 h-4 text-[#9896B0] hover:text-[#1E1B2E]" />
-              </button>
-            )}
-          </div>
-        </div>
 
         {/* Right side */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 ml-auto">
           {/* Notifications */}
           <div className="relative">
             <button

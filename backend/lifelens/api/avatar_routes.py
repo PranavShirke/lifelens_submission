@@ -443,7 +443,8 @@ def find_object(file: UploadFile = File(...), _: dict = Depends(verify_token)):
         embedding = object_service.generate_embedding(str(temp_path))
         matches = memory_service.search_object(embedding)
         
-        if matches and matches[0].score > 0.6:
+        # Robust threshold calibration for mobile camera variance (lighting/clutter)
+        if matches and matches[0].score > 0.48:
             best = matches[0]
             enrolled_obj = best.payload or {}
             
@@ -518,7 +519,7 @@ def find_object(file: UploadFile = File(...), _: dict = Depends(verify_token)):
 
 @router.post("/chat/query")
 @v1_router.post("/chat/query")
-def chat_query(payload: AvatarChatRequest = Body(...), _: dict = Depends(verify_token)):
+def chat_query(payload: AvatarChatRequest = Body(...), token_payload: dict = Depends(verify_token)):
     text = payload.text.strip()
     if not text:
         raise HTTPException(status_code=400, detail="Text query is required")
@@ -562,46 +563,45 @@ def chat_query(payload: AvatarChatRequest = Body(...), _: dict = Depends(verify_
         else:
             matches = semantic_memory.search_knowledge(text)
 
-    # ── NEW: If no avatar/semantic matches, search main patient memories + meds ──
+    # ── FIXED: Use standard search_memories with Gemini embeddings and patient_id filters ──
     if not matches:
         extra_context_parts = []
+        patient_id = token_payload.get("patient_id") or token_payload.get("id") or "patient_1"
 
         # Search main lifelens_memory collection for recent memories
         try:
-            from qdrant_client import QdrantClient
-            from lifelens.config import QDRANT_URL, QDRANT_API_KEY
-            main_client = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
+            from lifelens.retrieval.search_engine import search_memories
+            from lifelens.qdrant.client import get_qdrant_client
+            main_client = get_qdrant_client()
 
-            from sentence_transformers import SentenceTransformer
-            encoder = SentenceTransformer("all-MiniLM-L6-v2")
-            query_vec = encoder.encode(text).tolist()
-
-            mem_results = main_client.query_points(
-                collection_name="lifelens_memory",
-                query=query_vec,
-                limit=5,
+            mem_results = search_memories(
+                client=main_client,
+                query=text,
+                patient_id=patient_id,
+                top_k=5
             )
-            for pt in mem_results.points:
-                p = pt.payload or {}
-                content = p.get("content") or p.get("text") or p.get("notes") or ""
+            for m in mem_results:
+                content = m.get("content") or m.get("text") or m.get("caption") or m.get("transcript") or ""
                 if content:
-                    extra_context_parts.append(content[:300])
-        except Exception:
-            pass
+                    extra_context_parts.append(content)
+        except Exception as e:
+            import logging
+            logging.error(f"Failed to fetch memories in avatar chat fallback: {e}")
 
         # Fetch today's medication schedule
         try:
             from lifelens.agents.medication_scheduler import get_todays_medications
-            from lifelens.config import QDRANT_URL as Q_URL, QDRANT_API_KEY as Q_KEY
-            med_client = QdrantClient(url=Q_URL, api_key=Q_KEY)
-            meds = get_todays_medications(med_client, "patient_1")
+            from lifelens.qdrant.client import get_qdrant_client as get_med_client
+            med_client = get_med_client()
+            meds = get_todays_medications(med_client, patient_id)
             if meds:
                 med_lines = []
                 for m in meds:
                     med_lines.append(f"{m['medication_name']} {m['dosage']} at {m['scheduled_time']} — {m['status']}")
                 extra_context_parts.append("Today's Medications:\n" + "\n".join(med_lines))
-        except Exception:
-            pass
+        except Exception as e:
+            import logging
+            logging.error(f"Failed to fetch medications in avatar chat fallback: {e}")
 
         # Use LLM with gathered context (even if empty — for general conversation)
         combined_context = {

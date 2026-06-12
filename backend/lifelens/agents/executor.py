@@ -98,7 +98,11 @@ def _generate_answer(query: str, memories: Optional[List[Dict]], plan: dict) -> 
         elif any(q in query_lower for q in ["what can you do", "help", "how do you work"]):
             return "I'm LifeLens, your personal memory companion. I can help you:\n\n1. Store memories (photos, audio notes, text)\n2. Recall past events and experiences\n3. Find specific people, places, or moments\n4. Remind you of important things\n\nJust ask me about your memories, and I'll search through what you've stored!"
         else:
-            return "I don't have any stored memories to answer that question. Try uploading some memories first, or ask me something else!"
+            try:
+                return get_answer(query, [])
+            except Exception as e:
+                logger.error(f"Fallback answer generation failed: {e}")
+                return "I don't have any stored memories to answer that question. Try uploading some memories first, or ask me something else!"
     
     # Use existing get_answer function
     try:

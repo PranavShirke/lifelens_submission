@@ -517,22 +517,32 @@ def chat(request: ChatRequest, user: dict = Depends(verify_token)):
 
             result = run_agentic_flow(request.question, request.patient_id, client, max_retries=1)
 
+            if not result:
+                return {
+                    "answer": "I'm sorry, I couldn't process your request right now. Please try again.",
+                    "evidence": [],
+                    "agent_workflow": None,
+                    "session_id": None,
+                    "similarity_score": None,
+                    "keywords": [],
+                }
+
             # Build agent workflow info for the frontend
-            _plan = result.get("plan") or {} if result else {}
+            _plan = result.get("plan") or {}
             
             agent_workflow = {
                 "planner": _plan.get("reasoning", "Planning complete"),
-                "critic": f"Verdict: {result.get('verdict', 'pass')}" if result else "Verdict: pass",
-                "triggers": f"{len(result.get('triggers', []))} triggers generated" if result and result.get("triggers") else "No triggers needed",
+                "critic": f"Verdict: {result.get('verdict', 'pass')}",
+                "triggers": f"{len(result.get('triggers', []))} triggers generated" if result.get("triggers") else "No triggers needed",
                 "recommendations": "\n".join(
-                    [f"• {r.get('message', '')}" for r in (result.get("recommendations", []) if result else [])]
+                    [f"• {r.get('message', '')}" for r in (result.get("recommendations") or [])]
                 ) or "No specific recommendations",
                 "trace": [],
             }
 
             # Format sources for frontend
             evidence = []
-            for mem in result.get("sources", []):
+            for mem in (result.get("sources") or []):
                 evidence.append({
                     "id": str(uuid.uuid4()),
                     "type": mem.get("type", "text"),
@@ -549,12 +559,12 @@ def chat(request: ChatRequest, user: dict = Depends(verify_token)):
                 })
 
             return {
-                "answer": result["answer"],
+                "answer": result.get("answer", "I couldn't generate an answer."),
                 "evidence": evidence,
                 "agent_workflow": agent_workflow,
                 "session_id": result.get("session_id"),
                 "similarity_score": evidence[0]["score"] if evidence else None,
-                "keywords": result["plan"].get("keywords", []),
+                "keywords": _plan.get("keywords", []),
             }
         else:
             # Legacy flow

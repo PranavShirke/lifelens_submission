@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import Webcam from 'react-webcam';
-import { Camera, X, Scan, Target, Brain, Shield, Info, Loader2, Sparkles } from 'lucide-react';
+import { Camera, X, Scan, Target, Brain, Shield, Info, Loader2, Sparkles, Smartphone, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { uploadImage } from '@/lib/api/memories';
@@ -31,6 +31,44 @@ export default function WearableHUD({ onClose, onCapture }: WearableHUDProps) {
   const [scanCount, setScanCount] = useState(0);
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const lastAnnouncedRef = useRef<{ name: string; at: number } | null>(null);
+
+  // Camera device switching logic
+  const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([]);
+  const [selectedDeviceIndex, setSelectedDeviceIndex] = useState<number>(0);
+
+  const handleDevices = useCallback(
+    (mediaDevices: MediaDeviceInfo[]) => {
+      const videoInputs = mediaDevices.filter(({ kind }) => kind === 'videoinput');
+      setVideoDevices(videoInputs);
+    },
+    [setVideoDevices]
+  );
+
+  useEffect(() => {
+    if (typeof navigator !== 'undefined' && navigator.mediaDevices) {
+      navigator.mediaDevices.enumerateDevices().then(handleDevices).catch(() => {});
+    }
+  }, [handleDevices]);
+
+  const toggleCamera = () => {
+    if (videoDevices.length > 1) {
+      const nextIndex = (selectedDeviceIndex + 1) % videoDevices.length;
+      setSelectedDeviceIndex(nextIndex);
+      addToast({
+        type: 'info',
+        message: `Switched camera feed to device: ${videoDevices[nextIndex].label || `Camera ${nextIndex + 1}`}`,
+      });
+    } else {
+      addToast({
+        type: 'warning',
+        message: 'No secondary/USB wearable camera detected.',
+      });
+    }
+  };
+
+  const videoConstraints = videoDevices.length > 0 && videoDevices[selectedDeviceIndex]
+    ? { deviceId: { exact: videoDevices[selectedDeviceIndex].deviceId } }
+    : { facingMode: 'environment' };
 
   const announcePerson = useCallback((name: string) => {
     if (!voiceEnabled || typeof window === 'undefined' || !('speechSynthesis' in window)) return;
@@ -198,10 +236,16 @@ export default function WearableHUD({ onClose, onCapture }: WearableHUDProps) {
         <div className="flex-1 relative h-full">
           {/* Camera Feed */}
           <Webcam
+            key={videoDevices[selectedDeviceIndex]?.deviceId || 'default'}
             audio={false}
             ref={webcamRef}
             screenshotFormat="image/jpeg"
-            videoConstraints={{ facingMode: 'environment' }}
+            videoConstraints={videoConstraints}
+            onUserMedia={() => {
+              if (typeof navigator !== 'undefined' && navigator.mediaDevices) {
+                navigator.mediaDevices.enumerateDevices().then(handleDevices).catch(() => {});
+              }
+            }}
             className="w-full h-full object-cover contrast-[105%] brightness-[105%]"
           />
 
@@ -311,6 +355,21 @@ export default function WearableHUD({ onClose, onCapture }: WearableHUDProps) {
             >
               <Shield className="w-4 h-4 mb-0.5" />
               <span className="text-[8px] font-black uppercase">VOX</span>
+            </button>
+
+            {/* Camera Switch Source Button */}
+            <button
+              onClick={toggleCamera}
+              className={cn(
+                "w-12 h-12 rounded-full backdrop-blur-md border flex flex-col items-center justify-center transition-colors",
+                videoDevices.length > 1
+                  ? "bg-cyan-500/15 border-cyan-400/50 text-cyan-300 hover:bg-cyan-500/25"
+                  : "bg-black/40 border-white/20 text-white/60"
+              )}
+              title="Switch Camera Feed (Built-in / USB)"
+            >
+              <RefreshCw className="w-4 h-4 mb-0.5" />
+              <span className="text-[8px] font-black uppercase">Source</span>
             </button>
           </div>
 

@@ -47,7 +47,7 @@ export default function AvatarCameraModal({
 
       try {
         const media = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'environment' },
+          video: { facingMode: { ideal: 'environment' } },
         });
 
         if (cancelled) {

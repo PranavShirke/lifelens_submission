@@ -28,6 +28,230 @@ import { getMedications, getMedicationEvents, markDose } from '@/lib/api/medicat
 import { getTriggers, dismissTrigger } from '@/lib/api/triggers';
 import { getReminders, createReminder, completeReminder, getSuggestions } from '@/lib/api/dashboard';
 
+interface ParsedResponse {
+  summary: string;
+  details: string[];
+  reflection: string;
+  isStructured: boolean;
+}
+
+function parseDementiaResponse(text: string): ParsedResponse {
+  if (!text) return { summary: '', details: [], reflection: '', isStructured: false };
+  
+  const summaryMarker = '### 🌟 Summary';
+  const detailsMarker = '### 🔍 Memory Details';
+  const reflectionMarker = '### 💭 Reflection';
+  
+  const hasSummary = text.includes(summaryMarker);
+  
+  if (!hasSummary) {
+    return {
+      summary: text,
+      details: [],
+      reflection: '',
+      isStructured: false
+    };
+  }
+  
+  let summary = '';
+  let detailsText = '';
+  let reflection = '';
+  
+  const summaryIndex = text.indexOf(summaryMarker);
+  const detailsIndex = text.indexOf(detailsMarker);
+  const reflectionIndex = text.indexOf(reflectionMarker);
+  
+  // Extract Summary
+  if (detailsIndex !== -1) {
+    summary = text.slice(summaryIndex + summaryMarker.length, detailsIndex).trim();
+  } else if (reflectionIndex !== -1) {
+    summary = text.slice(summaryIndex + summaryMarker.length, reflectionIndex).trim();
+  } else {
+    summary = text.slice(summaryIndex + summaryMarker.length).trim();
+  }
+  
+  // Extract Details
+  if (detailsIndex !== -1) {
+    if (reflectionIndex !== -1) {
+      detailsText = text.slice(detailsIndex + detailsMarker.length, reflectionIndex).trim();
+    } else {
+      detailsText = text.slice(detailsIndex + detailsMarker.length).trim();
+    }
+  }
+  
+  // Extract Reflection
+  if (reflectionIndex !== -1) {
+    reflection = text.slice(reflectionIndex + reflectionMarker.length).trim();
+  }
+  
+  // Parse details bullet points
+  const details: string[] = [];
+  if (detailsText) {
+    const lines = detailsText.split('\n');
+    for (const line of lines) {
+      const cleanLine = line.replace(/^\s*[\*\-\•]\s*/, '').trim();
+      if (cleanLine) {
+        details.push(cleanLine);
+      }
+    }
+  }
+  
+  return {
+    summary,
+    details,
+    reflection,
+    isStructured: true
+  };
+}
+
+function DementiaResponse({
+  content,
+  msgId,
+  handleListen,
+  speakingId
+}: {
+  content: string;
+  msgId: string;
+  handleListen: (id: string, text: string) => void;
+  speakingId: string | null;
+}) {
+  const parsed = parseDementiaResponse(content);
+  let textToSpeak = content;
+  if (parsed.isStructured) {
+    const detailsText = parsed.details.join('. ');
+    textToSpeak = `${parsed.summary}. ${detailsText}. ${parsed.reflection}`;
+  }
+  const isSpeaking = speakingId === msgId;
+
+  if (!parsed.isStructured) {
+    return (
+      <div className="flex flex-col gap-3">
+        <p className="whitespace-pre-wrap leading-relaxed text-sm font-bold text-slate-800">{content}</p>
+        <button
+          onClick={() => handleListen(msgId, textToSpeak)}
+          className={cn(
+            "mt-1 text-[10px] flex items-center gap-1.5 font-bold transition-all py-1 px-2.5 rounded-lg border w-fit shadow-sm cursor-pointer",
+            isSpeaking
+              ? "bg-red-50 text-red-500 border-red-100 hover:bg-red-100 animate-pulse"
+              : "bg-slate-50 text-slate-500 border-slate-100 hover:text-slate-700 hover:bg-slate-100"
+          )}
+        >
+          {isSpeaking ? <X className="w-3 h-3" /> : <Volume2 className="w-3.5 h-3.5" />}
+          {isSpeaking ? 'Stop Listening' : 'Listen'}
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-4 py-1 text-slate-800">
+      {/* 1. Summary Card (Main answer) */}
+      <div className="bg-[#FFFDF9] border-2 border-[#FF8C42]/20 rounded-2xl p-4 shadow-sm relative overflow-hidden group">
+        <div className="absolute right-0 top-0 w-24 h-24 bg-gradient-to-bl from-[#FF8C42]/10 to-transparent rounded-bl-full pointer-events-none" />
+        <div className="flex gap-3 items-start">
+          <div className="w-9 h-9 rounded-xl bg-orange-100 flex items-center justify-center shrink-0 border border-orange-200 mt-0.5">
+            <Star className="w-5 h-5 text-[#FF8C42]" fill="currentColor" />
+          </div>
+          <div className="space-y-1 flex-1">
+            <h4 className="text-[10px] font-black text-[#FF8C42] uppercase tracking-wider">The Main Answer</h4>
+            <p className="text-base lg:text-[17px] font-black text-slate-800 leading-relaxed">
+              {parsed.summary}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* 2. Details Grid (if details exist) */}
+      {parsed.details.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center gap-1.5 px-1 mt-1">
+            <Search className="w-3.5 h-3.5 text-indigo-400" />
+            <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Memory Details</h5>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {parsed.details.map((detail, index) => {
+              let icon = <Info className="w-4 h-4 text-indigo-400" />;
+              let label = '';
+              let value = detail;
+              let bg = 'bg-slate-50 border-slate-100';
+
+              const lowerDetail = detail.toLowerCase();
+              if (lowerDetail.includes('when')) {
+                icon = <Clock className="w-4 h-4 text-amber-500" />;
+                label = 'When';
+                const idx = lowerDetail.indexOf('when:');
+                value = idx !== -1 ? detail.slice(idx + 5).trim() : detail;
+                bg = 'bg-amber-50/40 border-amber-100/50';
+              } else if (lowerDetail.includes('where')) {
+                icon = <Search className="w-4 h-4 text-rose-500" />;
+                label = 'Where';
+                const idx = lowerDetail.indexOf('where:');
+                value = idx !== -1 ? detail.slice(idx + 6).trim() : detail;
+                bg = 'bg-rose-50/40 border-rose-100/50';
+              } else if (lowerDetail.includes('who')) {
+                icon = <Heart className="w-4 h-4 text-pink-500" />;
+                label = 'Who';
+                const idx = lowerDetail.indexOf('who:');
+                value = idx !== -1 ? detail.slice(idx + 4).trim() : detail;
+                bg = 'bg-pink-50/40 border-pink-100/50';
+              } else if (lowerDetail.includes('what happened')) {
+                icon = <Sparkles className="w-4 h-4 text-emerald-500" />;
+                label = 'What happened';
+                const idx = lowerDetail.indexOf('what happened:');
+                value = idx !== -1 ? detail.slice(idx + 14).trim() : detail;
+                bg = 'bg-emerald-50/40 border-emerald-100/50';
+              }
+
+              // Strip formatting leftover markers
+              const cleanValue = value
+                .replace(/\*\*+/g, '')
+                .replace(/📅|📍|👥|💡/g, '')
+                .replace(/^[:\s]+/, '')
+                .trim();
+
+              return (
+                <div key={index} className={cn("p-3.5 rounded-xl border flex gap-3 items-start shadow-sm", bg)}>
+                  <div className="shrink-0 mt-0.5">{icon}</div>
+                  <div>
+                    {label && <p className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider mb-0.5">{label}</p>}
+                    <p className="text-xs font-black text-slate-800 leading-snug">{cleanValue}</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* 3. Reflection (Comfort note) */}
+      {parsed.reflection && (
+        <div className="bg-indigo-50/40 border border-indigo-100/60 rounded-xl p-3.5 flex gap-3 items-center shadow-sm">
+          <div className="w-7 h-7 rounded-lg bg-indigo-100/50 flex items-center justify-center shrink-0 border border-indigo-200">
+            <Heart className="w-4 h-4 text-indigo-500" fill="currentColor" />
+          </div>
+          <p className="text-xs font-bold text-indigo-700/90 italic leading-relaxed">
+            {parsed.reflection.replace(/\*\*+/g, '').trim()}
+          </p>
+        </div>
+      )}
+
+      {/* 4. Listen Trigger */}
+      <button
+        onClick={() => handleListen(msgId, textToSpeak)}
+        className={cn(
+          "mt-1 text-[11px] flex items-center gap-1.5 font-black transition-all py-2 px-4 rounded-xl border w-fit shadow-md hover:-translate-y-0.5 active:translate-y-0 cursor-pointer select-none",
+          isSpeaking
+            ? "bg-red-500 text-white border-red-500 hover:bg-red-600 animate-pulse shadow-red-200"
+            : "bg-white text-slate-600 border-slate-200 hover:text-slate-800 hover:bg-slate-50"
+        )}
+      >
+        {isSpeaking ? <X className="w-3.5 h-3.5" /> : <Volume2 className="w-4 h-4" />}
+        {isSpeaking ? 'Stop Listening' : 'Listen to Answer'}
+      </button>
+    </div>
+  );
+}
+
 export default function PatientHomePage() {
   return (
     <RoleGuard allowedRoles={['patient']}>
@@ -54,6 +278,7 @@ function PatientHomeContent() {
   const [savingReminder, setSavingReminder] = useState(false);
 
   const [textContent, setTextContent] = useState('');
+  const [photoCaption, setPhotoCaption] = useState('');
   const [personTags, setPersonTags] = useState('');
   const [location, setLocation] = useState<{ lat: number; lon: number; name: string } | null>(null);
   const [isMilestone, setIsMilestone] = useState(false);
@@ -65,6 +290,75 @@ function PatientHomeContent() {
   const chatEndRef = useRef<HTMLDivElement>(null);
   const [showWebcam, setShowWebcam] = useState(false);
   const [capturedFile, setCapturedFile] = useState<File | null>(null);
+  const [speakingId, setSpeakingId] = useState<string | null>(null);
+  const [showGuide, setShowGuide] = useState(false);
+
+function cleanTextForSpeech(text: string): string {
+  if (!text) return '';
+  return text
+    // 1. Remove markdown bolding asterisks, hashes, underscores, backticks
+    .replace(/\*\*+/g, '')       // bold asterisks
+    .replace(/\*/g, '')          // single asterisks
+    .replace(/#+/g, '')          // header hashes
+    .replace(/_+/g, '')          // underscores
+    .replace(/`+/g, '')          // backticks
+    .replace(/^\s*[\-\+\*]\s+/gm, '') // list markers at start of lines
+    // 2. Remove standard labels/keys for more natural, human-like voice synthesis
+    .replace(/when:|where:|who:|what happened:/gi, '')
+    // 3. Remove all emojis (standard and extended Unicode ranges)
+    .replace(/[\u{1F300}-\u{1F9FF}]|[\u{1F600}-\u{1F64F}]|[\u{1F680}-\u{1F6FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]|[\u{1F000}-\u{1FFFF}]|[\u{2B50}]|[\u{2B06}]|[\u{2190}-\u{21FF}]|[\u{2300}-\u{25FF}]/gu, '')
+    // 4. Collapse multiple spaces / periods / empty lines
+    .replace(/\s+/g, ' ')
+    .replace(/\.+/g, '.')
+    .trim();
+}
+
+  const handleListen = (msgId: string, textToSpeak: string) => {
+    if (typeof window === 'undefined' || !window.speechSynthesis) return;
+
+    if (speakingId === msgId) {
+      window.speechSynthesis.cancel();
+      setSpeakingId(null);
+      return;
+    }
+
+    window.speechSynthesis.cancel();
+
+    // Clean up Markdown and special markers from text for clean speech synthesis
+    const cleanText = cleanTextForSpeech(textToSpeak);
+
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+    
+    // Find a nice warm voice if possible
+    const voices = window.speechSynthesis.getVoices();
+    const naturalVoice = voices.find(v => 
+      v.name.includes('Google US English') || 
+      v.name.includes('Natural') || 
+      v.name.includes('Microsoft Zira') || 
+      v.name.includes('Samantha')
+    );
+    if (naturalVoice) {
+      utterance.voice = naturalVoice;
+    }
+    
+    utterance.rate = 0.82; // Slower paced to be highly accessible and comforting for dementia patients
+    utterance.pitch = 1.05; // Slightly warmer/friendly pitch
+    
+    utterance.onend = () => setSpeakingId(null);
+    utterance.onerror = () => setSpeakingId(null);
+
+    setSpeakingId(msgId);
+    window.speechSynthesis.speak(utterance);
+  };
+
+  // Stop reading if component unmounts
+  useEffect(() => {
+    return () => {
+      if (typeof window !== 'undefined' && window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, []);
 
   // Fetch real data from API on mount
   useEffect(() => {
@@ -114,6 +408,7 @@ function PatientHomeContent() {
     try {
       if (memoryType === 'image' && capturedFile) {
         await uploadImage(capturedFile, activePatientId || 'patient_1', {
+          caption: photoCaption || undefined,
           tags: personTags,
           isMilestone,
           location: location || undefined
@@ -133,7 +428,7 @@ function PatientHomeContent() {
       }
 
       addToast({ type: 'success', message: 'Memory saved successfully! 🧠' });
-      setTextContent(''); setPersonTags(''); setLocation(null); setIsMilestone(false); setCapturedFile(null); setShowWebcam(false);
+      setTextContent(''); setPhotoCaption(''); setPersonTags(''); setLocation(null); setIsMilestone(false); setCapturedFile(null); setShowWebcam(false);
     } catch { addToast({ type: 'error', message: 'Failed to save memory' }); }
     finally { setSaving(false); }
   };
@@ -218,35 +513,46 @@ function PatientHomeContent() {
 
       {/* ─── ROW 1: Welcome + Quick Stats ─── */}
       <motion.div variants={fadeUp} className="w-full">
-        <div className="card w-full p-6 lg:p-8 shadow-lg flex flex-col lg:flex-row items-center justify-between gap-6 relative overflow-hidden">
-          <div className="absolute -top-16 -right-16 w-64 h-64 bg-gradient-to-bl from-[#FFC299]/30 to-transparent rounded-full blur-3xl pointer-events-none" />
-          <div className="absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr from-[#B5CEB5]/20 to-transparent rounded-full blur-2xl pointer-events-none" />
+        <div className="relative w-full p-6 lg:p-8 rounded-[28px] flex flex-col lg:flex-row items-center justify-between gap-6 overflow-hidden bg-white/80 backdrop-blur-2xl border border-white/60 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+          {/* Refined Mesh Gradient Background */}
+          <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none rounded-[28px] z-0">
+            <div className="absolute -top-[30%] -right-[10%] w-[50%] h-[150%] bg-gradient-to-b from-indigo-50/80 to-purple-50/40 blur-[60px] rotate-12" />
+            <div className="absolute -bottom-[20%] -left-[10%] w-[40%] h-[120%] bg-gradient-to-t from-amber-50/80 to-orange-50/40 blur-[60px] -rotate-12" />
+          </div>
           
           <div className="flex items-center gap-5 relative z-10 w-full lg:w-auto">
-            <motion.img whileHover={{ scale: 1.08, rotate: -3 }} src={`https://api.dicebear.com/7.x/notionists/svg?seed=${firstName}`} alt="avatar" className="w-16 h-16 rounded-2xl bg-[#FFF5E6] shadow-md ring-4 ring-white flex-shrink-0 object-cover" />
+            <div className="relative">
+              <div className="absolute inset-0 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-2xl blur-md" />
+              <motion.img whileHover={{ scale: 1.05, rotate: -2 }} src={`https://api.dicebear.com/7.x/notionists/svg?seed=${firstName}`} alt="avatar" className="relative w-16 h-16 rounded-2xl bg-white shadow-sm ring-4 ring-white flex-shrink-0 object-cover" />
+            </div>
             <div className="min-w-0">
-              <h1 className="text-2xl font-black tracking-tight text-[#1E1B2E] truncate">{getGreeting()}, {firstName} 👋</h1>
-              <p className="text-xs font-semibold text-[#9896B0] mt-1 uppercase tracking-wider">{todayStr}</p>
+              <h1 className="text-[26px] font-black tracking-tight text-slate-800 truncate mb-1">{getGreeting()}, {firstName} 👋</h1>
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{todayStr}</p>
+              </div>
             </div>
           </div>
 
-          <div className="flex flex-row items-center gap-3 lg:gap-4 relative z-10 w-full lg:w-auto overflow-x-auto pb-2 lg:pb-0">
+          <div className="flex flex-row items-center gap-3 relative z-10 w-full lg:w-auto overflow-x-auto pb-2 lg:pb-0 custom-scrollbar">
             {[
-              { label: 'Memories', value: memories.length.toString(), icon: Heart, color: 'text-[#FF8C42]', bg: 'bg-[#FFF5E6]', href: '/memory-lane' },
-              { label: 'Adherence', value: `${adherence}%`, icon: Pill, color: 'text-[#7A9E7A]', bg: 'bg-[#EAF2E9]' },
-              { label: 'Mood', value: 'Positive', icon: TrendingUp, color: 'text-[#C9A96E]', bg: 'bg-[#FDF8EE]' },
-            ].map((s, i) => {
+              { label: 'Total Memories', value: memories.length.toString(), icon: Heart, iconBg: 'bg-indigo-50 text-indigo-500', href: '/memory-lane' },
+              { label: 'Adherence', value: `${adherence}%`, icon: Pill, iconBg: 'bg-emerald-50 text-emerald-500' },
+              { label: 'Mood', value: 'Positive', icon: TrendingUp, iconBg: 'bg-amber-50 text-amber-500' },
+            ].map((s) => {
               const InnerContent = (
                 <>
-                  <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shrink-0 mb-2", s.bg)}>
-                    <s.icon className={cn("w-5 h-5", s.color)} />
+                  <div className={cn("w-9 h-9 rounded-full flex items-center justify-center shrink-0 shadow-[inset_0_1px_2px_rgba(0,0,0,0.05)]", s.iconBg)}>
+                    <s.icon className="w-4 h-4" />
                   </div>
-                  <p className="text-lg font-black tracking-tight text-[#1E1B2E] leading-none">{s.value}</p>
-                  <p className="text-[9px] font-extrabold text-[#9896B0] uppercase tracking-widest mt-1">{s.label}</p>
+                  <div className="flex flex-col items-start justify-center pt-0.5">
+                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1.5">{s.label}</span>
+                    <span className="text-sm font-black tracking-tight text-slate-800 leading-none">{s.value}</span>
+                  </div>
                 </>
               );
 
-              const className = "bg-white/60 hover:bg-white backdrop-blur-md border border-white/80 rounded-[16px] p-4 flex flex-col items-center justify-center text-center shadow-sm w-[100px] h-[100px] shrink-0 transition-all hover:-translate-y-1 hover:shadow-md cursor-pointer group";
+              const className = "bg-white border border-slate-100/80 hover:bg-slate-50/80 rounded-full pl-2 pr-6 py-2 flex items-center gap-3.5 transition-all hover:-translate-y-1 hover:border-slate-200 hover:shadow-md shadow-[0_2px_10px_rgba(0,0,0,0.02)] cursor-pointer shrink-0 select-none";
 
               if (s.href) {
                 return <Link key={s.label} href={s.href} className={className}>{InnerContent}</Link>;
@@ -265,19 +571,28 @@ function PatientHomeContent() {
 
           {/* Tab Bar */}
           <div className="flex items-center justify-between">
-            <div className="flex p-1 rounded-[16px] gap-1" style={{ background: '#F6F5FA', border: '1px solid rgba(255, 140, 66,0.12)', boxShadow: 'inset 0px 2px 4px rgba(30,27,46,0.03)' }}>
-              {([
-                { key: 'remember' as const, label: 'Remember', icon: Star },
-                { key: 'ask' as const, label: 'Ask AI', icon: Brain },
-              ]).map((t) => (
-                <button key={t.key} onClick={() => setActiveTab(t.key)}
-                  className={cn("relative flex items-center gap-2 px-5 py-2.5 text-xs font-bold rounded-[12px] transition-all z-10",
-                    activeTab === t.key ? 'text-[#1E1B2E]' : 'text-[#9896B0] hover:text-[#5A576E]')}>
-                  {activeTab === t.key && <motion.div layoutId="main-tab" className="absolute inset-0 bg-white rounded-[12px] -z-10" style={{ boxShadow: '0 2px 8px rgba(255, 140, 66,0.15)' }} transition={{ type: "spring", bounce: 0.15, duration: 0.5 }} />}
-                  <t.icon className="w-3.5 h-3.5" />
-                  {t.label}
-                </button>
-              ))}
+            <div className="flex items-center gap-2.5">
+              <div className="flex p-1 rounded-[16px] gap-1" style={{ background: '#F6F5FA', border: '1px solid rgba(255, 140, 66,0.12)', boxShadow: 'inset 0px 2px 4px rgba(30,27,46,0.03)' }}>
+                {([
+                  { key: 'remember' as const, label: 'Remember', icon: Star },
+                  { key: 'ask' as const, label: 'Ask AI', icon: Brain },
+                ]).map((t) => (
+                  <button key={t.key} onClick={() => setActiveTab(t.key)}
+                    className={cn("relative flex items-center gap-2 px-5 py-2.5 text-xs font-bold rounded-[12px] transition-all z-10",
+                      activeTab === t.key ? 'text-[#1E1B2E]' : 'text-[#9896B0] hover:text-[#5A576E]')}>
+                    {activeTab === t.key && <motion.div layoutId="main-tab" className="absolute inset-0 bg-white rounded-[12px] -z-10" style={{ boxShadow: '0 2px 8px rgba(255, 140, 66,0.15)' }} transition={{ type: "spring", bounce: 0.15, duration: 0.5 }} />}
+                    <t.icon className="w-3.5 h-3.5" />
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+              <button 
+                onClick={() => setShowGuide(true)}
+                className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-black bg-[#F6F5FA] hover:bg-[#FF8C42]/10 text-[#9896B0] hover:text-[#FF8C42] border border-[#FF8C42]/10 shadow-[inset_0px_2px_4px_rgba(30,27,46,0.02)] transition-all cursor-pointer select-none"
+                title="View Dashboard Guide"
+              >
+                ?
+              </button>
             </div>
             <Link href="/memory-lane" className="flex items-center gap-2 px-5 py-2.5 text-xs font-bold text-[#FF8C42] hover:bg-[#FF8C42]/10 rounded-xl transition-all">
               View Memory Lane <ChevronRight className="w-3.5 h-3.5" />
@@ -378,7 +693,10 @@ function PatientHomeContent() {
                     <div className="flex items-center justify-between mt-5 pt-5 border-t border-slate-100 flex-wrap gap-3">
                       <div className="flex items-center gap-3 flex-wrap flex-1 min-w-0">
                         {memoryType === 'image' && (
-                          <input className="input-base max-w-[200px] py-2 text-xs" placeholder="Tag people..." value={personTags} onChange={(e) => setPersonTags(e.target.value)} />
+                          <>
+                            <input className="input-base max-w-[200px] py-2 text-xs" placeholder="Tag people..." value={personTags} onChange={(e) => setPersonTags(e.target.value)} />
+                            <input className="input-base flex-1 min-w-[200px] py-2 text-xs" placeholder="Tell us about this photo... (e.g. Went to this hotel...)" value={photoCaption} onChange={(e) => setPhotoCaption(e.target.value)} />
+                          </>
                         )}
                         <LocationSelector value={location} onChange={setLocation} />
                         <MilestoneToggle checked={isMilestone} onChange={setIsMilestone} />
@@ -427,22 +745,28 @@ function PatientHomeContent() {
                             <Brain className="w-4 h-4 text-[#FF8C42]" />
                           </div>
                         )}
-                        <div className={cn('max-w-[78%] rounded-2xl px-4 py-3 text-sm font-medium',
+                        <div className={cn('max-w-[85%] rounded-2xl px-4 py-3 text-sm font-medium',
                           msg.role === 'user' ? 'text-white rounded-tr-sm' : 'bg-white border border-[#FFC299]/15 rounded-tl-sm shadow-sm')}
                           style={msg.role === 'user' ? { background: 'linear-gradient(135deg, #1E1B2E, #2A2640)' } : {}}>
-                          <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+                          {msg.role === 'user' ? (
+                            <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+                          ) : (
+                            <DementiaResponse
+                              content={msg.content}
+                              msgId={msg.id}
+                              handleListen={handleListen}
+                              speakingId={speakingId}
+                            />
+                          )}
                           {msg.evidence && msg.evidence.length > 0 && (
-                            <div className="mt-3 pt-3 border-t border-[#FFC299]/15">
-                              <p className="text-[10px] font-black text-[#9896B0] uppercase tracking-widest mb-2">📚 Referenced</p>
+                            <div className="mt-4 pt-3 border-t border-[#FFC299]/15">
+                              <p className="text-[10px] font-black text-[#9896B0] uppercase tracking-widest mb-2">📚 Stored Memories Found</p>
                               <div className="flex gap-2 overflow-x-auto pb-1 custom-scrollbar">
                                 {msg.evidence.map((m, index) => (<div key={`${m.id}-${index}`} className="flex-shrink-0 w-56"><MemoryCard memory={m} compact /></div>))}
                               </div>
                             </div>
                           )}
-                          {msg.agentWorkflow && agenticMode && <div className="mt-3"><AgentWorkflowTabs workflow={msg.agentWorkflow} /></div>}
-                          {msg.role === 'assistant' && (
-                            <button className="mt-2 text-[10px] text-[#9896B0] hover:text-[#FF8C42] flex items-center gap-1 font-bold"><Volume2 className="w-3 h-3" /> Listen</button>
-                          )}
+                          {msg.agentWorkflow && agenticMode && <div className="mt-4 border-t border-[#FFC299]/15 pt-3"><AgentWorkflowTabs workflow={msg.agentWorkflow} /></div>}
                         </div>
                       </div>
                     ))}
@@ -457,7 +781,7 @@ function PatientHomeContent() {
 
                   <div className="p-4 bg-white border-t border-[#FFC299]/15">
                     <div className="flex items-center gap-2 rounded-2xl pr-2 pl-5 focus-within:ring-2 focus-within:ring-[#FF8C42]/20 transition-all" style={{ background: '#f6f5fa', boxShadow: 'inset 0px 3px 6px rgba(30,27,46,0.05), inset 0px -1px 2px rgba(255,255,255,1)' }}>
-                      <input className="flex-1 bg-transparent py-3.5 text-sm font-medium outline-none placeholder:text-[#9896B0]" placeholder="Ask about your memories..."
+                      <input className="flex-1 bg-transparent py-3.5 text-sm font-medium border-0 focus:outline-none focus:ring-0 focus:border-transparent placeholder:text-[#9896B0]" placeholder="Ask about your memories..."
                         value={question} onChange={(e) => setQuestion(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleAsk()} />
                       <button onClick={handleAsk} disabled={asking} className="w-9 h-9 rounded-xl text-white flex items-center justify-center shadow-lg hover:scale-105 transition-transform disabled:opacity-50 flex-shrink-0" style={{ background: 'linear-gradient(135deg, #FF8C42, #E67329)' }}>
                         <Send className={cn("w-4 h-4", asking && "animate-pulse")} />
@@ -586,6 +910,48 @@ function PatientHomeContent() {
 
         {/* Right: Sidebar */}
         <motion.div variants={fadeUp} className="col-span-12 lg:col-span-4 flex flex-col gap-5">
+
+          {/* Compact Unified Avatar Assistant */}
+          <Link href="/avatar-assistant" className="relative rounded-[20px] p-[2px] overflow-hidden group block transition-transform hover:scale-[1.02]">
+            <div className="absolute inset-0 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 animate-[spin_4s_linear_infinite] opacity-50 group-hover:opacity-100 transition-opacity" />
+            <div className="absolute inset-0 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 blur-lg opacity-20 group-hover:opacity-50 transition-opacity" />
+            
+            <div className="relative h-full rounded-[18px] bg-[#1E1B2E] p-5 flex flex-col gap-4 z-10 overflow-hidden">
+              <div className="absolute -right-10 -top-10 w-32 h-32 bg-indigo-500/20 rounded-full blur-[40px] pointer-events-none" />
+              <div className="absolute -bottom-10 -left-10 w-32 h-32 bg-pink-500/20 rounded-full blur-[40px] pointer-events-none" />
+              
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="relative">
+                    <div className="absolute inset-0 bg-purple-500/30 rounded-xl blur-sm animate-pulse" />
+                    <div className="w-10 h-10 rounded-xl bg-white/10 border border-white/20 backdrop-blur-md flex items-center justify-center relative z-10 shadow-lg">
+                      <Sparkles className="w-4 h-4 text-purple-400" />
+                    </div>
+                  </div>
+                  <div>
+                    <h3 className="font-black text-base tracking-tight text-white">Avatar Assistant</h3>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <span className="flex items-center gap-1 text-[8px] font-bold text-indigo-400 uppercase tracking-widest"><Camera className="w-2.5 h-2.5" /> Vision</span>
+                      <span className="w-1 h-1 rounded-full bg-white/20" />
+                      <span className="flex items-center gap-1 text-[8px] font-bold text-pink-400 uppercase tracking-widest"><Search className="w-2.5 h-2.5" /> AI</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex flex-col items-center justify-center px-2 py-1.5 rounded-lg bg-white/5 border border-white/10 backdrop-blur-sm">
+                  <div className="flex gap-0.5 mb-1">
+                    <div className="w-1 h-2 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                    <div className="w-1 h-3 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                    <div className="w-1 h-2 bg-pink-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                  </div>
+                  <span className="text-[7px] font-bold text-white/50 uppercase tracking-widest">Live</span>
+                </div>
+              </div>
+              
+              <p className="text-xs text-white/60 font-medium leading-relaxed">
+                AI companion is active. Monitoring face, objects, and providing real-time voice context.
+              </p>
+            </div>
+          </Link>
 
           {/* Medications — Elegant Dark */}
           <div className="card p-5 relative overflow-hidden group" style={{ background: 'linear-gradient(135deg, #1E1B2E, #2A2640)', border: '1px solid rgba(255, 140, 66,0.1)' }}>
@@ -718,117 +1084,28 @@ function PatientHomeContent() {
         </motion.div>
       </div>
 
-
-
-      {/* ─── ROW 4: Upcoming Features (Coming Soon) ─── */}
-      <motion.div variants={fadeUp}>
-        <div className="mb-5 flex items-center gap-3">
-          <h2 className="text-lg font-black tracking-tight text-slate-900">Edge Features</h2>
-          <span className="px-3 py-1 rounded-[10px] border-2 border-[#1E1B2E] bg-gradient-to-r from-violet-500 to-pink-500 text-white text-[9px] font-black uppercase tracking-widest shadow-[3px_3px_0_#1E1B2E]">Roadmap</span>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          {/* 3D Avatar + Chat */}
-          <Link href="/avatar-assistant" className="relative rounded-[14px] border-2 border-[#1E1B2E] bg-gradient-to-br from-violet-50/75 to-white p-6 flex flex-col gap-4 transition-all hover:-translate-x-1 hover:-translate-y-1 hover:shadow-[8px_8px_0_#1E1B2E] shadow-[5px_5px_0_#1E1B2E] group overflow-hidden block">
-            <div className="absolute top-0 right-0 w-40 h-40 bg-violet-300/20 rounded-full blur-[60px] pointer-events-none group-hover:bg-violet-300/30 transition-colors" />
-            <div className="flex items-center justify-between relative z-10">
-              <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-xl bg-violet-100 border-2 border-[#1E1B2E] shadow-[2px_2px_0_#1E1B2E] flex items-center justify-center">
-                  <Brain className="w-5 h-5 text-violet-600" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-sm text-slate-900">3D Avatar Assistant</h3>
-                  <p className="text-[10px] font-bold text-violet-400 uppercase tracking-widest">Full-Screen Experience</p>
-                </div>
-              </div>
-              <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-[10px] bg-[#EAF2E9] text-[#5A835A] text-[9px] font-black uppercase tracking-widest border-2 border-[#1E1B2E] shadow-[2px_2px_0_#1E1B2E]">
-                <CheckCircle2 className="w-3 h-3" /> Live
-              </span>
-            </div>
-            <p className="text-xs text-slate-500 font-medium leading-relaxed relative z-10">A full-screen 3D avatar companion that speaks naturally, recognises faces through the camera, answers questions about memories, and provides contextual support — all in real-time.</p>
-            <div className="flex gap-2 flex-wrap relative z-10">
-              {['Llama 3 LLM', 'Real-time TTS', 'Qdrant Vector DB', '3D Rendering'].map((t) => (
-                <span key={t} className="px-2.5 py-1 rounded-[8px] bg-white border-2 border-[#1E1B2E] text-[10px] font-bold text-violet-600 shadow-[2px_2px_0_rgba(30,27,46,0.45)]">{t}</span>
-              ))}
-            </div>
-          </Link>
-
-          {/* Face Recognition */}
-          <Link href="/avatar-assistant" className="relative rounded-[14px] border-2 border-[#1E1B2E] bg-gradient-to-br from-cyan-50/75 to-white p-6 flex flex-col gap-4 transition-all hover:-translate-x-1 hover:-translate-y-1 hover:shadow-[8px_8px_0_#1E1B2E] shadow-[5px_5px_0_#1E1B2E] group overflow-hidden block">
-            <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-cyan-300/20 rounded-full blur-[60px] pointer-events-none group-hover:bg-cyan-300/30 transition-colors" />
-            <div className="flex items-center justify-between relative z-10">
-              <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-xl bg-cyan-100 border-2 border-[#1E1B2E] shadow-[2px_2px_0_#1E1B2E] flex items-center justify-center group-hover:bg-cyan-500 transition-colors">
-                  <Camera className="w-5 h-5 text-cyan-600 group-hover:text-white transition-colors" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-sm text-slate-900">Face Recognition</h3>
-                  <p className="text-[10px] font-bold text-cyan-400 uppercase tracking-widest">&quot;Who is this?&quot;</p>
-                </div>
-              </div>
-              <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-[10px] bg-[#EAF2E9] text-[#5A835A] text-[9px] font-black uppercase tracking-widest border-2 border-[#1E1B2E] shadow-[2px_2px_0_#1E1B2E]">
-                <CheckCircle2 className="w-3 h-3" /> Live
-              </span>
-            </div>
-            <p className="text-xs text-slate-500 font-medium leading-relaxed relative z-10">Point your camera at a person. The system captures a frame, compares it against the Qdrant face database, and the avatar verbally introduces them — <em>&quot;This is John, your son.&quot;</em></p>
-            <div className="flex gap-2 flex-wrap relative z-10">
-              {['Face Embedding', 'Qdrant Matching', 'Avatar Voice'].map((t) => (
-                <span key={t} className="px-2.5 py-1 rounded-[8px] bg-white border-2 border-[#1E1B2E] text-[10px] font-bold text-cyan-600 shadow-[2px_2px_0_rgba(30,27,46,0.45)]">{t}</span>
-              ))}
-            </div>
-          </Link>
-
-          {/* Object Tracking */}
-          <Link href="/avatar-assistant" className="relative rounded-[14px] border-2 border-[#1E1B2E] bg-gradient-to-br from-amber-50/80 to-white p-6 flex flex-col gap-4 transition-all hover:-translate-x-1 hover:-translate-y-1 hover:shadow-[8px_8px_0_#1E1B2E] shadow-[5px_5px_0_#1E1B2E] group overflow-hidden block">
-            <div className="absolute top-0 left-0 w-40 h-40 bg-amber-300/20 rounded-full blur-[60px] pointer-events-none group-hover:bg-amber-300/30 transition-colors" />
-            <div className="flex items-center justify-between relative z-10">
-              <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-xl bg-amber-100 border-2 border-[#1E1B2E] shadow-[2px_2px_0_#1E1B2E] flex items-center justify-center group-hover:bg-amber-500 transition-colors">
-                  <Search className="w-5 h-5 text-amber-600 group-hover:text-white transition-colors" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-sm text-slate-900">Object Tracking</h3>
-                  <p className="text-[10px] font-bold text-amber-400 uppercase tracking-widest">&quot;Where are my keys?&quot;</p>
-                </div>
-              </div>
-              <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-[10px] bg-[#EAF2E9] text-[#5A835A] text-[9px] font-black uppercase tracking-widest border-2 border-[#1E1B2E] shadow-[2px_2px_0_#1E1B2E]">
-                <CheckCircle2 className="w-3 h-3" /> Live
-              </span>
-            </div>
-            <p className="text-xs text-slate-500 font-medium leading-relaxed relative z-10">The camera scans for enrolled objects like medicine boxes, wallets, or keys. When spotted, the avatar announces — <em>&quot;I found your Medicine Box on the table.&quot;</em></p>
-            <div className="flex gap-2 flex-wrap relative z-10">
-              {['Object Detection', 'YOLO Model', 'Spatial Mapping'].map((t) => (
-                <span key={t} className="px-2.5 py-1 rounded-[8px] bg-white border-2 border-[#1E1B2E] text-[10px] font-bold text-amber-700 shadow-[2px_2px_0_rgba(30,27,46,0.45)]">{t}</span>
-              ))}
-            </div>
-          </Link>
-
-          {/* Voice Playback */}
-          <Link href="/avatar-assistant" className="relative rounded-[14px] border-2 border-[#1E1B2E] bg-gradient-to-br from-pink-50/75 to-white p-6 flex flex-col gap-4 transition-all hover:-translate-x-1 hover:-translate-y-1 hover:shadow-[8px_8px_0_#1E1B2E] shadow-[5px_5px_0_#1E1B2E] group overflow-hidden block">
-            <div className="absolute -top-10 -right-10 w-40 h-40 bg-pink-300/20 rounded-full blur-[60px] pointer-events-none group-hover:bg-pink-300/30 transition-colors" />
-            <div className="flex items-center justify-between relative z-10">
-              <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-xl bg-pink-100 border-2 border-[#1E1B2E] shadow-[2px_2px_0_#1E1B2E] flex items-center justify-center group-hover:bg-pink-500 transition-colors">
-                  <Volume2 className="w-5 h-5 text-pink-600 group-hover:text-white transition-colors" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-sm text-slate-900">Voice Playback</h3>
-                  <p className="text-[10px] font-bold text-pink-400 uppercase tracking-widest">&quot;How does John talk?&quot;</p>
-                </div>
-              </div>
-              <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-[10px] bg-[#EAF2E9] text-[#5A835A] text-[9px] font-black uppercase tracking-widest border-2 border-[#1E1B2E] shadow-[2px_2px_0_#1E1B2E]">
-                <CheckCircle2 className="w-3 h-3" /> Live
-              </span>
-            </div>
-            <p className="text-xs text-slate-500 font-medium leading-relaxed relative z-10">Store voice samples of relatives. When the patient asks to hear a familiar voice, the AI retrieves and synthesizes the saved audio — bringing comfort through recognition.</p>
-            <div className="flex gap-2 flex-wrap relative z-10">
-              {['Voice Cloning', 'Audio Retrieval', 'TTS Synthesis'].map((t) => (
-                <span key={t} className="px-2.5 py-1 rounded-[8px] bg-white border-2 border-[#1E1B2E] text-[10px] font-bold text-pink-600 shadow-[2px_2px_0_rgba(30,27,46,0.45)]">{t}</span>
-              ))}
-            </div>
-          </Link>
-        </div>
-      </motion.div>
+      <AnimatePresence>
+        {showGuide && (
+          <div 
+            onClick={() => setShowGuide(false)}
+            className="fixed inset-0 md:left-[240px] z-[10000] bg-black/40 backdrop-blur-md flex items-center justify-center cursor-pointer p-4 md:p-6"
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="relative max-w-[85%] max-h-[72vh] flex items-center justify-center"
+            >
+              <img 
+                src="/3.png" 
+                alt="Dashboard Guide" 
+                className="max-w-full max-h-[72vh] rounded-2xl shadow-2xl border border-white/10 object-contain"
+              />
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
     </motion.div>
   );

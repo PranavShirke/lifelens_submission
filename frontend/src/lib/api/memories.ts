@@ -39,7 +39,7 @@ function mapBackendMemory(m: Record<string, unknown>): Memory {
 // ---- API Functions ----
 
 export async function getMemories(patientId: string): Promise<Memory[]> {
-  const { data } = await apiClient.get(`/memories/${patientId}`);
+  const { data } = await apiClient.get(`/memories/${patientId.replace('-', '_')}`);
   return (data.memories || []).map(mapBackendMemory);
 }
 
@@ -49,7 +49,7 @@ export async function searchMemories(
 ): Promise<{ answer: string; memories: Memory[] }> {
   const { data } = await apiClient.post('/search', {
     query,
-    patient_id: patientId,
+    patient_id: patientId.replace('-', '_'),
     top_k: 5,
   });
   return {
@@ -61,7 +61,7 @@ export async function searchMemories(
 export async function createMemory(memData: Partial<Memory>): Promise<Memory> {
   await apiClient.post('/memory/create', {
     content: memData.content || memData.caption || memData.transcript || '',
-    patient_id: memData.patientId,
+    patient_id: memData.patientId?.replace('-', '_'),
     tags: memData.personTags?.join(', '),
     location: memData.location,
     is_milestone: memData.isMilestone || false,
@@ -90,7 +90,7 @@ export async function uploadImage(
 ): Promise<{ status: string; message: string }> {
   const formData = new FormData();
   formData.append('file', file);
-  formData.append('patient_id', patientId);
+  formData.append('patient_id', patientId.replace('-', '_'));
   if (options?.caption) formData.append('caption', options.caption);
   if (options?.tags) formData.append('tags', options.tags);
   if (options?.isMilestone) formData.append('is_milestone', 'true');
@@ -109,7 +109,7 @@ export async function uploadAudio(
 ): Promise<{ status: string; message: string; transcript?: string }> {
   const formData = new FormData();
   formData.append('file', file);
-  formData.append('patient_id', patientId);
+  formData.append('patient_id', patientId.replace('-', '_'));
 
   const { data } = await apiClient.post('/upload/audio', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
@@ -125,7 +125,7 @@ export async function askLifeLens(
 ): Promise<ChatMessage> {
   const { data } = await apiClient.post('/chat', {
     question,
-    patient_id: patientId,
+    patient_id: patientId.replace('-', '_'),
     agentic_mode: agenticMode,
   });
 

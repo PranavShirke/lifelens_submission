@@ -15,3 +15,7 @@ backend/backend/
 backend/temp_uploads/
 backend/known_faces/
 backend/photo/enrolled/
+# Large binaries and temp files
+*.mp4
+*.apk
+backend/temp_*

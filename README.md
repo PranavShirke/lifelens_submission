@@ -1,4 +1,5 @@
 # LifeLens: AI-Powered Proactive Memory Care Ecosystem
+### Submission for AMD
 
 > **Bridging the gap between memory loss and meaningful connection.**
 

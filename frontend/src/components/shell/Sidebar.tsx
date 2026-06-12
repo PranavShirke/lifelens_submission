@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useSessionStore } from '@/lib/store/session-store';
 import { cn } from '@/lib/utils';
 import {
@@ -38,6 +38,7 @@ const toolItems: NavItem[] = [
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const { user, logout } = useSessionStore();
   const role = user?.role || 'patient';
   const firstName = user?.fullName?.split(' ')[0] || 'User';
@@ -139,7 +140,7 @@ export default function Sidebar() {
         <button
           onClick={() => {
             logout();
-            window.location.href = '/';
+            window.location.href = '/?skipIntro=true';
           }}
           className="group flex items-center gap-3 px-4 py-2 text-[13px] font-medium text-[#9896B0] hover:text-[#D4A0A0] hover:bg-[#D4A0A0]/10 transition-all w-full rounded-lg"
         >
