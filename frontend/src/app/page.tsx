@@ -958,6 +958,8 @@ export default function LandingPage() {
           animation: 'fadeUp 0.9s 0.4s ease both'
         }}>
           <strong>Disclaimer:</strong> The backend is hosted on Render's free tier. You may experience initial delays due to server cold starts. Additionally, memory-intensive features like face/object recognition and image uploads for memories may not function correctly due to the free tier's severe memory limitations.
+          <br /><br />
+          For a full demonstration of all intended features in action, please watch our <a href="http://youtu.be/Qn8KUr6mKpw" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--tangerine)', fontWeight: 500, textDecoration: 'underline' }}>Product Demo on YouTube</a>.
         </div>
 
         {/* Floating memory cards */}
