@@ -10,7 +10,6 @@ scratch/
 *.log
 backend/scratch/
 frontend/scratch/
-lifelenseflutter/
 backend/backend/
 backend/temp_uploads/
 backend/known_faces/
@@ -19,3 +18,5 @@ backend/photo/enrolled/
 *.mp4
 *.apk
 backend/temp_*
+lifelenseflutter/build/
+lifelenseflutter/.dart_tool/
